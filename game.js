@@ -1,8 +1,3 @@
-/* =====================================================
-   GIFTS TYCOON - game.js
-   Complete rewrite with all new features
-   ===================================================== */
-
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.expand(); tg.setHeaderColor('#060e06'); tg.setBackgroundColor('#060e06'); }
 
@@ -14,14 +9,11 @@ const USER = {
 const BOT_USERNAME = 'GiftsTycoonBot';
 const API_BASE = '/api';
 
-/* ── STATE ── */
 function defaultState() {
     return {
         coins: { normal: 50, silver: 5, gold: 1 },
         warehouse: { current: 0, max: 200, coins: { normal: 0, silver: 0, gold: 0 } },
-        mines: [
-            { id: 0, unlocked: true, storageCurrent: 0, storageMax: 50, level: 1 }
-        ],
+        mines: [{ id: 0, unlocked: true, storageCurrent: 0, storageMax: 50, level: 1 }],
         activeMine: 0,
         lift: { level: 1, capacity: 15 },
         train: { level: 1 },
@@ -30,7 +22,7 @@ function defaultState() {
         happyHour: { active: false, endsAt: 0 },
         stats: { totalNormal: 0, totalSilver: 0, totalGold: 0, tonEarned: 0 },
         upgradeLevels: { minerSpeed: 1, minerCap: 1, liftSpeed: 1, liftCap: 1, mineStorageCap: 1, warehouseCap: 1 },
-        managers: { miner: false, lift: false },
+        managers: { miner: false, lift: false, train: false },
         referrals: 0
     };
 }
@@ -49,53 +41,44 @@ function saveState() {
 
 let gameState = loadState();
 
-/* ── UPGRADE CONFIGS ── */
 const UPGRADE_CONFIG = {
     minerSpeed:    { name: 'Скорость шахтёра', icon: '⚡', speedMult: [1,1.3,1.7,2.2,2.8,3.5,4.3,5.2,6.2,7.3], costs: [100,200,400,800,1600,3200,6400,12800,25600,0] },
     minerCap:      { name: 'Вместимость шахтёра', icon: '🎒', capAdd: [0,3,6,10,15,21,28,36,45,55], costs: [120,250,500,1000,2000,4000,8000,16000,32000,0] },
     liftSpeed:     { name: 'Скорость лифта', icon: '🚡', speedMult: [1,1.3,1.7,2.2,2.8,3.5,4.3,5.2,6.2,7.3], costs: [150,300,600,1200,2400,4800,9600,19200,38400,0] },
     liftCap:       { name: 'Вместимость лифта', icon: '📦', capAdd: [0,5,12,20,30,42,56,72,90,110], costs: [120,250,500,1000,2000,4000,8000,16000,32000,0] },
-    mineStorageCap:{ name: 'Объём склада шахты', icon: '🏗️', capAdd: [0,25,60,110,175,255,350,460,585,725], costs: [80,160,320,640,1280,2560,5120,10240,20480,0] },
+    mineStorageCap:{ name: 'Объём шахты', icon: '🏗️', capAdd: [0,25,60,110,175,255,350,460,585,725], costs: [80,160,320,640,1280,2560,5120,10240,20480,0] },
     warehouseCap:  { name: 'Объём хранилища', icon: '🏦', capAdd: [0,100,250,450,700,1000,1350,1750,2200,2700], costs: [100,200,400,800,1600,3200,6400,12800,25600,0] }
 };
 const MANAGER_CONFIG = {
-    miner: { name: 'Менеджер шахтёра', icon: '👷', cost: 500, desc: 'Автоматизирует всех шахтёров' },
-    lift:  { name: 'Менеджер лифта',   icon: '🧑‍💼', cost: 750, desc: 'Автоматизирует лифт' }
+    miner: { name: 'Менеджер шахтёра', icon: '👷', cost: 500, desc: 'Автоматизирует шахтёров' },
+    lift:  { name: 'Менеджер лифта',   icon: '🧑‍💼', cost: 750, desc: 'Автоматизирует лифт' },
+    train: { name: 'Менеджер поезда',  icon: '🚂', cost: 600, desc: 'Автоматизирует поезд' }
 };
-const MINE_UNLOCK_COSTS = [0, 2000, 8000, 25000]; // cost to unlock mine index 1,2,3
+const MINE_UNLOCK_COSTS = [0, 2000, 8000, 25000];
 
-/* ── GETTERS ── */
+const ADMIN_IDS = ['123456789'];
+function isAdmin() { return ADMIN_IDS.includes(String(USER.id)); }
+
 function getMinerSpeed() {
     const lvl = gameState.upgradeLevels.minerSpeed;
     let mult = UPGRADE_CONFIG.minerSpeed.speedMult[lvl-1];
     if (isHappyHour()) mult *= 1.5;
     return 180 / mult;
 }
-function getMinerCap() { return 5 + UPGRADE_CONFIG.minerCap.capAdd[gameState.upgradeLevels.minerCap-1]; }
-function getLiftSpeed() { return 28 / UPGRADE_CONFIG.liftSpeed.speedMult[gameState.upgradeLevels.liftSpeed-1]; }
-function getLiftCap()   { return 15 + UPGRADE_CONFIG.liftCap.capAdd[gameState.upgradeLevels.liftCap-1]; }
-function getMineMax()   { return 50 + UPGRADE_CONFIG.mineStorageCap.capAdd[gameState.upgradeLevels.mineStorageCap-1]; }
-function getWhMax()     { return 200 + UPGRADE_CONFIG.warehouseCap.capAdd[gameState.upgradeLevels.warehouseCap-1]; }
-function isHappyHour()  { return gameState.happyHour.active && Date.now() < gameState.happyHour.endsAt; }
-
-function getActiveMine() {
-    return gameState.mines[gameState.activeMine] || gameState.mines[0];
-}
-
-function getTotalMineStorage() {
-    return gameState.mines.reduce((s,m) => s + (m.unlocked ? m.storageCurrent : 0), 0);
-}
-
-function getAllMinesStorageMax() {
-    return gameState.mines.reduce((s,m) => s + (m.unlocked ? getMineMax() : 0), 0);
-}
-
+function getMinerCap()   { return 5 + UPGRADE_CONFIG.minerCap.capAdd[gameState.upgradeLevels.minerCap-1]; }
+function getLiftSpeed()  { return 28 / UPGRADE_CONFIG.liftSpeed.speedMult[gameState.upgradeLevels.liftSpeed-1]; }
+function getLiftCap()    { return 15 + UPGRADE_CONFIG.liftCap.capAdd[gameState.upgradeLevels.liftCap-1]; }
+function getMineMax()    { return 50 + UPGRADE_CONFIG.mineStorageCap.capAdd[gameState.upgradeLevels.mineStorageCap-1]; }
+function getWhMax()      { return 200 + UPGRADE_CONFIG.warehouseCap.capAdd[gameState.upgradeLevels.warehouseCap-1]; }
+function isHappyHour()   { return gameState.happyHour.active && Date.now() < gameState.happyHour.endsAt; }
+function getActiveMine() { return gameState.mines[gameState.activeMine] || gameState.mines[0]; }
+function getTotalMineStorage() { return gameState.mines.reduce((s,m) => s + (m.unlocked ? m.storageCurrent : 0), 0); }
+function getAllMinesStorageMax() { return gameState.mines.reduce((s,m) => s + (m.unlocked ? getMineMax() : 0), 0); }
 function getTotalWarehouse() {
     const wh = gameState.warehouse.coins;
     return (wh.normal||0) + (wh.silver||0) + (wh.gold||0);
 }
 
-/* ── COIN GENERATION ── */
 function generateCoin() {
     const r = Math.random() * 100;
     let rates = { ...gameState.rates };
@@ -109,7 +92,6 @@ function generateCoin() {
     return 'normal';
 }
 
-/* ── CANVAS ── */
 const canvas = document.getElementById('game-canvas');
 const ctx    = canvas.getContext('2d');
 let W = 0, H = 0;
@@ -119,41 +101,41 @@ function resizeCanvas() {
     H = canvas.height = canvas.parentElement.clientHeight;
 }
 
-/* ── ANIMATION STATE ── */
 const liftAnim = {
-    y: 0,         // 0 = surface, 1 = bottom
-    phase: 'idle',// idle | descending | loading | ascending | unloading
-    loadTimer: 0,
-    unloadTimer: 0,
-    carrying: 0,
-    coinTypes: { normal: 0, silver: 0, gold: 0 }
+    y: 0, phase: 'idle', loadTimer: 0, unloadTimer: 0, carrying: 0,
+    coinTypes: { normal:0, silver:0, gold:0 },
+    manualTrigger: false
 };
 
 const trainAnim = {
-    x: 0.0,         // 0 = lift side, 1 = warehouse side
-    phase: 'idle',  // idle | goingRight | loading | goingLeft | unloading
+    x: 1.0,
+    phase: 'idle',
     loadTimer: 0,
     smokeIntensity: 0,
     smokeParticles: [],
-    carrying: { normal: 0, silver: 0, gold: 0 }
+    carrying: { normal:0, silver:0, gold:0 },
+    manualTrigger: false
 };
 
-const particles = [];
+let minerAnims = [];
+function initMinerAnims() {
+    while (minerAnims.length < gameState.mines.length) {
+        minerAnims.push({ posX: 0.15, phase: 'idle', timer: 0, swingAngle: 0, manualTrigger: false });
+    }
+}
 
+const particles = [];
 function spawnParticle(x, y, text, vx, vy) {
     particles.push({ x, y, text, vx: vx||(Math.random()-0.5)*2, vy: vy||(-2-Math.random()), life: 1, alpha: 1 });
 }
 
-/* ── GAME LOOP ── */
 let lastTime = 0;
-let minerTimer = 0;
 let autoSaveTimer = 0;
 
 function gameTick(timestamp) {
     const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
     lastTime = timestamp;
 
-    // Happy hour check
     if (gameState.happyHour.active && Date.now() > gameState.happyHour.endsAt) {
         gameState.happyHour.active = false;
         document.getElementById('happy-hour-badge').classList.add('hidden');
@@ -164,36 +146,55 @@ function gameTick(timestamp) {
     const minCap   = getMinerCap();
     const minSpd   = getMinerSpeed();
     const liftCap  = getLiftCap();
-    const liftSpd  = getLiftSpeed();
 
-    // ── MINERS: produce coins into mine storage ──
-    const numMiners = gameState.mines.filter(m => m.unlocked).length;
-    minerTimer += dt;
-    if (minerTimer >= minSpd) {
-        minerTimer -= minSpd;
-        gameState.mines.forEach(mine => {
-            if (!mine.unlocked) return;
-            const add = Math.min(minCap, mineMax - mine.storageCurrent);
-            if (add > 0) {
-                for (let i = 0; i < add; i++) {
-                    const type = generateCoin();
-                    gameState.coins[type] += 1;
-                    gameState.stats['total' + type[0].toUpperCase() + type.slice(1)] = (gameState.stats['total' + type[0].toUpperCase() + type.slice(1)] || 0) + 1;
+    initMinerAnims();
+    const unlockedMines = gameState.mines.filter(m => m.unlocked);
+
+    unlockedMines.forEach((mine, i) => {
+        const anim = minerAnims[i] || (minerAnims[i] = { posX: 0.15, phase: 'idle', timer: 0, swingAngle: 0, manualTrigger: false });
+        const hasManager = gameState.managers.miner;
+
+        if (anim.phase === 'idle') {
+            if (hasManager || anim.manualTrigger) {
+                anim.manualTrigger = false;
+                if (mine.storageCurrent < mineMax) {
+                    anim.phase = 'goingToWall';
                 }
-                mine.storageCurrent = Math.min(mine.storageCurrent + add, mineMax);
-                if (W && H) spawnParticle(W * (0.35 + Math.random() * 0.3), H * 0.82, '⛏️');
             }
-        });
-    }
+        } else if (anim.phase === 'goingToWall') {
+            anim.posX = Math.max(0.02, anim.posX - dt * 0.6);
+            if (anim.posX <= 0.05) {
+                anim.phase = 'mining';
+                anim.timer = minSpd * 0.4;
+            }
+        } else if (anim.phase === 'mining') {
+            anim.swingAngle = Math.sin(timestamp / 200) * 0.8;
+            anim.timer -= dt;
+            if (anim.timer <= 0) {
+                const add = Math.min(minCap, mineMax - mine.storageCurrent);
+                if (add > 0) {
+                    for (let k = 0; k < add; k++) {
+                        const type = generateCoin();
+                        gameState.coins[type] += 1;
+                        gameState.stats['total' + type[0].toUpperCase() + type.slice(1)] = (gameState.stats['total' + type[0].toUpperCase() + type.slice(1)] || 0) + 1;
+                    }
+                    mine.storageCurrent = Math.min(mine.storageCurrent + add, mineMax);
+                }
+                anim.phase = 'returning';
+            }
+        } else if (anim.phase === 'returning') {
+            anim.posX = Math.min(0.15, anim.posX + dt * 0.4);
+            if (anim.posX >= 0.14) {
+                anim.phase = 'idle';
+                anim.swingAngle = 0;
+            }
+        }
+    });
 
-    // ── LIFT STATE MACHINE ──
     const activeMine = getActiveMine();
-    updateLift(dt, activeMine, liftCap, liftSpd, whMax);
-
-    // ── TRAIN STATE MACHINE ──
+    updateLift(dt, activeMine, liftCap, getLiftSpeed(), whMax);
     updateTrain(dt);
 
-    // ── PARTICLES ──
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.x += p.vx; p.y += p.vy; p.vy += 0.06;
@@ -201,98 +202,78 @@ function gameTick(timestamp) {
         if (p.life <= 0) particles.splice(i, 1);
     }
 
-    // ── TRAIN SMOKE FADE ──
-    if (trainAnim.phase === 'idle' || trainAnim.phase === 'goingLeft') {
-        trainAnim.smokeIntensity = Math.max(0, trainAnim.smokeIntensity - dt * 0.5);
-    }
     if (trainAnim.smokeParticles) {
         trainAnim.smokeParticles = trainAnim.smokeParticles.filter(p => {
             p.x += p.vx; p.y += p.vy; p.life -= dt; p.r += 0.5;
             return p.life > 0;
         });
         if (trainAnim.smokeIntensity > 0.1 && Math.random() < trainAnim.smokeIntensity * 0.4) {
-            const tx = W * (0.18 + trainAnim.x * (0.55 - 0.18));
-            const trainY = H * 0.54;
-            trainAnim.smokeParticles.push({ x: tx + 8, y: trainY - 22, vx: (Math.random()-0.5)*0.4, vy: -0.8-Math.random(), life: 1+Math.random(), r: 4, alpha: 1 });
+            const tx = W * (WAREHOUSE_X_PCT - 0.05 - trainAnim.x * (WAREHOUSE_X_PCT - LIFT_X_PCT - 0.05));
+            const trainY = H * SURFACE_Y_PCT + 4;
+            trainAnim.smokeParticles.push({ x: tx + 8, y: trainY - 22, vx: (Math.random()-0.5)*0.4, vy: -0.8-Math.random(), life: 1+Math.random(), r: 4 });
         }
     }
 
-    // ── AUTO SAVE ──
     autoSaveTimer += dt;
     if (autoSaveTimer >= 15) { autoSaveTimer = 0; saveState(); }
 
     updateHUD();
-
     if (W && H) drawScene(timestamp);
     requestAnimationFrame(gameTick);
 }
 
 function updateLift(dt, mine, liftCap, liftSpd, whMax) {
-    const DESCEND_SPEED = 1.2; // units/sec (1 = full shaft)
+    const DESCEND_SPEED = 1.2;
     const ASCEND_SPEED  = 1.4;
     const LOAD_TIME     = 1.2;
     const UNLOAD_TIME   = 0.8;
+    const hasManager = gameState.managers.lift;
 
     switch (liftAnim.phase) {
         case 'idle':
-            // Start descent if mine has coins and warehouse has space
-            if (mine.storageCurrent > 0 && getTotalWarehouse() < whMax) {
+            if ((hasManager || liftAnim.manualTrigger) && mine.storageCurrent > 0 && getTotalWarehouse() < whMax) {
+                liftAnim.manualTrigger = false;
                 liftAnim.phase = 'descending';
                 liftAnim.carrying = 0;
-                liftAnim.coinTypes = { normal: 0, silver: 0, gold: 0 };
+                liftAnim.coinTypes = { normal:0, silver:0, gold:0 };
             }
             break;
-
         case 'descending':
             liftAnim.y = Math.min(1, liftAnim.y + dt * DESCEND_SPEED);
-            if (liftAnim.y >= 1) {
-                liftAnim.phase = 'loading';
-                liftAnim.loadTimer = LOAD_TIME;
-            }
+            if (liftAnim.y >= 1) { liftAnim.phase = 'loading'; liftAnim.loadTimer = LOAD_TIME; }
             break;
-
         case 'loading': {
             liftAnim.loadTimer -= dt;
             if (liftAnim.loadTimer <= 0) {
-                // Load coins from mine
                 const space = whMax - getTotalWarehouse();
                 const take  = Math.min(liftCap, mine.storageCurrent, space);
                 mine.storageCurrent -= take;
                 liftAnim.carrying = take;
-                // Distribute coin types proportionally
                 const r = gameState.rates;
                 liftAnim.coinTypes.normal = Math.round(take * r.normal / 100);
                 liftAnim.coinTypes.silver = Math.round(take * r.silver / 100);
-                liftAnim.coinTypes.gold   = take - liftAnim.coinTypes.normal - liftAnim.coinTypes.silver;
-                liftAnim.coinTypes.gold   = Math.max(0, liftAnim.coinTypes.gold);
-                if (W && H) spawnParticle(W * 0.15, H * 0.85, '📦');
+                liftAnim.coinTypes.gold   = Math.max(0, take - liftAnim.coinTypes.normal - liftAnim.coinTypes.silver);
                 liftAnim.phase = 'ascending';
             }
             break;
         }
-
         case 'ascending':
             liftAnim.y = Math.max(0, liftAnim.y - dt * ASCEND_SPEED);
-            if (liftAnim.y <= 0) {
-                liftAnim.phase = 'unloading';
-                liftAnim.unloadTimer = UNLOAD_TIME;
-            }
+            if (liftAnim.y <= 0) { liftAnim.phase = 'unloading'; liftAnim.unloadTimer = UNLOAD_TIME; }
             break;
-
         case 'unloading': {
             liftAnim.unloadTimer -= dt;
             if (liftAnim.unloadTimer <= 0) {
-                // Deposit to "train pickup area" (warehouse coins buffer)
                 const wh = gameState.warehouse.coins;
-                wh.normal  = (wh.normal  || 0) + liftAnim.coinTypes.normal;
-                wh.silver  = (wh.silver  || 0) + liftAnim.coinTypes.silver;
-                wh.gold    = (wh.gold    || 0) + liftAnim.coinTypes.gold;
+                wh.normal = (wh.normal||0) + liftAnim.coinTypes.normal;
+                wh.silver = (wh.silver||0) + liftAnim.coinTypes.silver;
+                wh.gold   = (wh.gold||0)   + liftAnim.coinTypes.gold;
                 gameState.warehouse.current = getTotalWarehouse();
-                if (W && H) spawnParticle(W * 0.18, H * 0.52, '🎁');
-                // Trigger train
-                if (trainAnim.phase === 'idle') trainAnim.phase = 'goingRight';
+                if ((gameState.managers.train || trainAnim.manualTrigger) && trainAnim.phase === 'idle') {
+                    trainAnim.phase = 'goingToLift';
+                }
                 liftAnim.carrying = 0;
-                liftAnim.coinTypes = { normal: 0, silver: 0, gold: 0 };
+                liftAnim.coinTypes = { normal:0, silver:0, gold:0 };
                 liftAnim.phase = 'idle';
             }
             break;
@@ -301,81 +282,66 @@ function updateLift(dt, mine, liftCap, liftSpd, whMax) {
 }
 
 function updateTrain(dt) {
-    const TRAIN_SPEED     = 0.45; // 0-1 per sec
-    const LOAD_TIME       = 1.5;
-    const UNLOAD_TIME     = 1.2;
-    const TRAIN_STOP_LOAD = 0.05;
+    const TRAIN_SPEED = 0.45;
+    const LOAD_TIME   = 1.5;
+    const UNLOAD_TIME = 1.2;
+    const hasManager = gameState.managers.train;
 
     switch (trainAnim.phase) {
-        case 'goingRight':
-            trainAnim.x = Math.min(1, trainAnim.x + dt * TRAIN_SPEED);
-            if (trainAnim.x >= 1) {
-                trainAnim.phase = 'loading';
-                trainAnim.loadTimer = LOAD_TIME;
+        case 'idle':
+            if ((hasManager || trainAnim.manualTrigger) && getTotalWarehouse() > 0) {
+                trainAnim.manualTrigger = false;
+                trainAnim.phase = 'goingToLift';
             }
             break;
-
-        case 'loading':
+        case 'goingToLift':
+            trainAnim.x = Math.max(0, trainAnim.x - dt * TRAIN_SPEED);
+            trainAnim.smokeIntensity = Math.max(0, trainAnim.smokeIntensity - dt * 0.3);
+            if (trainAnim.x <= 0) { trainAnim.phase = 'loadingAtLift'; trainAnim.loadTimer = LOAD_TIME; }
+            break;
+        case 'loadingAtLift':
             trainAnim.loadTimer -= dt;
             if (trainAnim.loadTimer <= 0) {
-                // Pick up from warehouse coins buffer
                 const wh = gameState.warehouse.coins;
                 trainAnim.carrying.normal = wh.normal || 0;
                 trainAnim.carrying.silver = wh.silver || 0;
                 trainAnim.carrying.gold   = wh.gold   || 0;
-                gameState.warehouse.coins = { normal: 0, silver: 0, gold: 0 };
+                gameState.warehouse.coins = { normal:0, silver:0, gold:0 };
                 gameState.warehouse.current = 0;
                 trainAnim.smokeIntensity = 1.0;
-                trainAnim.phase = 'goingLeft';
-                if (W && H) spawnParticle(W * 0.75, H * 0.52, '💨');
+                trainAnim.phase = 'goingToWarehouse';
             }
             break;
-
-        case 'goingLeft':
-            trainAnim.x = Math.max(0, trainAnim.x - dt * TRAIN_SPEED * 0.8);
-            if (trainAnim.x <= 0) {
-                trainAnim.phase = 'unloading';
-                trainAnim.loadTimer = UNLOAD_TIME;
-            }
+        case 'goingToWarehouse':
+            trainAnim.x = Math.min(1, trainAnim.x + dt * TRAIN_SPEED * 0.8);
+            if (trainAnim.x >= 1) { trainAnim.phase = 'unloadingAtWarehouse'; trainAnim.loadTimer = UNLOAD_TIME; }
             break;
-
-        case 'unloading':
+        case 'unloadingAtWarehouse':
             trainAnim.loadTimer -= dt;
             if (trainAnim.loadTimer <= 0) {
-                // Deliver to main storage (coins are already tracked in gameState.coins)
                 trainAnim.smokeIntensity = 0;
-                trainAnim.carrying = { normal: 0, silver: 0, gold: 0 };
+                trainAnim.carrying = { normal:0, silver:0, gold:0 };
                 trainAnim.phase = 'idle';
-                // Check if more to pick up
-                if (getTotalWarehouse() > 0) trainAnim.phase = 'goingRight';
+                if ((hasManager || trainAnim.manualTrigger) && getTotalWarehouse() > 0) {
+                    trainAnim.phase = 'goingToLift';
+                }
             }
-            break;
-
-        case 'idle':
-            if (getTotalWarehouse() > 0) trainAnim.phase = 'goingRight';
             break;
     }
 }
 
-/* ══════════════════════════════════════════
-   DRAWING
-   ══════════════════════════════════════════ */
-const SURFACE_Y_PCT = 0.54;
-const LIFT_X_PCT    = 0.14;
-const WAREHOUSE_X_PCT = 0.80;
+const SURFACE_Y_PCT   = 0.52;
+const LIFT_X_PCT      = 0.13;
+const WAREHOUSE_X_PCT = 0.82;
 
 function drawScene(t) {
     ctx.clearRect(0, 0, W, H);
     const sy = H * SURFACE_Y_PCT;
 
-    // Sky
     const sky = ctx.createLinearGradient(0, 0, 0, sy);
-    sky.addColorStop(0, '#0d2a4a');
-    sky.addColorStop(0.6, '#1a4a6e');
-    sky.addColorStop(1, '#265a7a');
+    sky.addColorStop(0, '#0d2a4a'); sky.addColorStop(0.6, '#1a4a6e'); sky.addColorStop(1, '#265a7a');
     ctx.fillStyle = sky; ctx.fillRect(0, 0, W, sy);
 
-    // Stars in sky
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
     for (let i = 0; i < 25; i++) {
         const sx2 = (i * 137.5 % 1) * W;
@@ -390,22 +356,17 @@ function drawScene(t) {
     drawCloud(ctx, W * 0.2 + Math.sin(t/9000)*8, H * 0.1, 40);
     drawCloud(ctx, W * 0.6 + Math.sin(t/7000)*6, H * 0.15, 28);
 
-    // Ground surface
     ctx.fillStyle = '#1a3a1a';
     ctx.fillRect(0, sy - 14, W, 18);
     ctx.fillStyle = '#2d5a2d';
     ctx.fillRect(0, sy - 16, W, 5);
     drawGrass(ctx, W, sy);
 
-    // Underground
     const ug = ctx.createLinearGradient(0, sy, 0, H);
-    ug.addColorStop(0, '#2d1a08');
-    ug.addColorStop(0.4, '#1f1006');
-    ug.addColorStop(1, '#100804');
+    ug.addColorStop(0, '#2d1a08'); ug.addColorStop(0.4, '#1f1006'); ug.addColorStop(1, '#100804');
     ctx.fillStyle = ug;
     ctx.fillRect(0, sy, W, H - sy);
 
-    // Rock texture
     ctx.fillStyle = 'rgba(0,0,0,0.12)';
     for (let i = 0; i < 18; i++) {
         const rx = (i * 137.5 % 1) * W;
@@ -414,78 +375,72 @@ function drawScene(t) {
         ctx.beginPath(); ctx.arc(rx, ry, rr, 0, Math.PI*2); ctx.fill();
     }
 
-    // Gem veins
     drawGems(ctx, W, sy, H, t);
 
-    // Multiple mines
     const unlockedMines = gameState.mines.filter(m => m.unlocked);
     const mineCount = unlockedMines.length;
-    const mineSpacing = W * 0.25;
-    const firstMineX  = W * 0.35;
+    const cabinW = Math.min(110, (W * 0.55) / mineCount - 8);
+    const cabinH = Math.min(70, (H - sy) * 0.45);
+    const firstMineX = W * 0.34;
+    const mineSpacing = mineCount > 1 ? (W * 0.55 - cabinW) / (mineCount - 1) : 0;
 
     for (let i = 0; i < mineCount; i++) {
-        const mx = firstMineX + i * mineSpacing;
-        const my = H * 0.875;
-        drawMiner(ctx, mx, my, t + i * 500, unlockedMines[i].storageCurrent > 0);
+        const mine = unlockedMines[i];
+        const mx = firstMineX + i * (mineCount > 1 ? (W * 0.54 / (mineCount)) : 0);
+        const cabinTop = sy + (H - sy) * 0.18;
+        drawMinerCabin(ctx, mx, cabinTop, cabinW, cabinH, mine, i, t);
     }
 
-    // Show mine storage indicators
     for (let i = 0; i < mineCount; i++) {
-        const mx = firstMineX + i * mineSpacing;
+        const mx = firstMineX + i * (mineCount > 1 ? (W * 0.54 / mineCount) : 0);
         const pct = unlockedMines[i].storageCurrent / getMineMax();
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        roundRect(ctx, mx - 22, H * 0.895, 44, 12, 5); ctx.fill();
+        roundRect(ctx, mx - 26, H * 0.72, 52, 10, 4); ctx.fill();
         ctx.fillStyle = pct > 0.8 ? '#f44336' : '#8BC34A';
-        ctx.beginPath(); roundRect(ctx, mx - 20, H * 0.897, 40 * pct, 8, 3); ctx.fill();
+        roundRect(ctx, mx - 24, H * 0.73, 48 * pct, 7, 3); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = `7px 'Courier New'`; ctx.textAlign = 'center';
+        ctx.fillText(`${unlockedMines[i].storageCurrent}/${getMineMax()}`, mx, H * 0.74);
     }
 
-    // Lift shaft
     const liftX = W * LIFT_X_PCT;
     const shaftTop = sy - 28;
-    const shaftH = H * 0.87 - shaftTop;
+    const shaftH = H * 0.72 - shaftTop;
     drawLiftShaft(ctx, liftX, shaftTop, shaftH, liftAnim.y, t);
 
-    // Train track + train
-    const trainTrackY = sy + 4;
+    const trainTrackY = sy + 6;
     const trackX1 = liftX + 26;
-    const trackX2 = W * WAREHOUSE_X_PCT - 24;
+    const trackX2 = W * WAREHOUSE_X_PCT - 28;
     drawTrainTrack(ctx, trackX1, trainTrackY, trackX2);
 
-    // Train position
-    const trainX = trackX1 + (trackX2 - trackX1) * trainAnim.x;
+    const trainDrawX = trackX1 + (trackX2 - trackX1) * trainAnim.x;
     const isLoaded = trainAnim.smokeIntensity > 0.1;
-    drawTrain(ctx, trainX, trainTrackY - 22, t, isLoaded, trainAnim.phase);
+    drawTrain(ctx, trainDrawX, trainTrackY - 20, t, isLoaded, trainAnim.phase);
 
-    // Train smoke particles
+    if (!gameState.managers.train) {
+        drawClickHint(ctx, trainDrawX, trainTrackY - 38, '👆');
+    }
+
     trainAnim.smokeParticles.forEach(p => {
-        ctx.save();
-        ctx.globalAlpha = p.life * 0.6;
-        const col = isLoaded ? `rgba(40,30,20,${p.life * 0.7})` : `rgba(200,200,200,${p.life * 0.4})`;
-        ctx.fillStyle = col;
+        ctx.save(); ctx.globalAlpha = p.life * 0.6;
+        ctx.fillStyle = `rgba(40,30,20,${p.life * 0.7})`;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
         ctx.restore();
     });
 
-    // Warehouse
     const whX = W * WAREHOUSE_X_PCT;
     drawWarehouse(ctx, whX, sy - 80, t);
 
-    // Lift level label
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    roundRect(ctx, liftX - 22, sy - 48, 44, 16, 6); ctx.fill();
-    ctx.fillStyle = '#8BC34A'; ctx.font = `bold 9px 'Courier New', monospace`;
+    roundRect(ctx, liftX - 24, sy - 50, 48, 16, 6); ctx.fill();
+    ctx.fillStyle = '#8BC34A'; ctx.font = `bold 8px 'Courier New', monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText(`ЛИФТ Lv${gameState.upgradeLevels.liftSpeed}`, liftX, sy - 36);
+    ctx.fillText(`ЛИФТ Lv${gameState.upgradeLevels.liftSpeed}`, liftX, sy - 38);
 
-    // Mine storage label (combined)
-    const totalStorage = getTotalMineStorage();
-    const totalMax     = getAllMinesStorageMax();
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    roundRect(ctx, W*0.3, H*0.918, 100, 16, 6); ctx.fill();
-    ctx.fillStyle = '#ccc'; ctx.font = `bold 9px 'Courier New', monospace`;
-    ctx.fillText(`Шахты: ${totalStorage}/${totalMax}`, W*0.35, H*0.929);
+    if (!gameState.managers.lift) {
+        drawClickHint(ctx, liftX, sy - 60, '👆');
+    }
 
-    // Particles
     particles.forEach(p => {
         ctx.save(); ctx.globalAlpha = p.alpha;
         ctx.font = '16px serif'; ctx.textAlign = 'center';
@@ -494,42 +449,159 @@ function drawScene(t) {
     });
 }
 
-/* ── DRAW HELPERS ── */
+function drawClickHint(ctx, x, y, icon) {
+    ctx.save();
+    ctx.font = '11px serif'; ctx.textAlign = 'center'; ctx.globalAlpha = 0.7;
+    ctx.fillText(icon, x, y);
+    ctx.restore();
+}
+
+function drawMinerCabin(ctx, cx, topY, cw, ch, mine, mineIdx, t) {
+    const anim = minerAnims[mineIdx];
+    if (!anim) return;
+
+    const x1 = cx - cw / 2;
+    const roomH = ch;
+
+    const bg = ctx.createLinearGradient(x1, topY, x1 + cw, topY + roomH);
+    bg.addColorStop(0, '#1a0f05');
+    bg.addColorStop(1, '#0d0804');
+    ctx.fillStyle = bg;
+    roundRect(ctx, x1, topY, cw, roomH, 6); ctx.fill();
+
+    ctx.strokeStyle = anim.phase === 'mining' ? 'rgba(139,195,74,0.6)' : 'rgba(80,120,80,0.5)';
+    ctx.lineWidth = 2;
+    roundRect(ctx, x1, topY, cw, roomH, 6); ctx.stroke();
+
+    ctx.fillStyle = '#332211';
+    ctx.fillRect(x1 + 4, topY + roomH - 6, cw - 8, 6);
+
+    const torchGlow = 0.5 + Math.sin(t/600) * 0.15;
+    ctx.save(); ctx.globalAlpha = torchGlow;
+    ctx.fillStyle = '#FF8C00';
+    ctx.beginPath(); ctx.arc(x1 + 10, topY + 10, 5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x1 + cw - 10, topY + 10, 5, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    const minerRelX = anim.posX;
+    const minerAbsX = x1 + 10 + minerRelX * (cw - 20);
+    const minerY = topY + roomH - 8;
+
+    if (anim.phase === 'mining') {
+        ctx.save();
+        const dustAlpha = 0.5 + Math.sin(t/100) * 0.3;
+        ctx.globalAlpha = dustAlpha * 0.4;
+        ctx.fillStyle = '#8a6a3a';
+        ctx.beginPath(); ctx.arc(x1 + 8, minerY - 20, 10, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+
+    drawMinerFigure(ctx, minerAbsX, minerY, t, anim, mine.storageCurrent > 0);
+
+    const hasManager = gameState.managers.miner;
+    if (hasManager) {
+        const mgrX = cx + cw * 0.2;
+        const mgrY = minerY;
+        ctx.save();
+        ctx.font = '16px serif'; ctx.textAlign = 'center';
+        ctx.globalAlpha = 0.85;
+        ctx.fillText('👔', mgrX, mgrY - 12);
+        ctx.globalAlpha = 0.6; ctx.font = `6px 'Courier New'`;
+        ctx.fillStyle = '#CE93D8'; ctx.fillText('MGR', mgrX, mgrY - 3);
+        ctx.restore();
+    } else {
+        const btnX = cx + cw * 0.2;
+        const btnY = topY + roomH * 0.4;
+        ctx.save();
+        ctx.fillStyle = 'rgba(74,20,140,0.6)';
+        ctx.strokeStyle = 'rgba(206,147,216,0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(btnX, btnY, 10, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#CE93D8'; ctx.font = `bold 12px 'Courier New'`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('+', btnX, btnY);
+        ctx.textBaseline = 'alphabetic';
+        ctx.restore();
+    }
+
+    ctx.fillStyle = '#8BC34A'; ctx.font = `bold 7px 'Courier New'`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`ШАХТА ${mineIdx+1}`, cx, topY - 4);
+}
+
+function drawMinerFigure(ctx, x, y, t, anim, active) {
+    ctx.save();
+    const walking = anim.phase === 'goingToWall' || anim.phase === 'returning';
+    const mining  = anim.phase === 'mining';
+    const legSwing = walking ? Math.sin(t / 150) * 5 : 0;
+
+    ctx.fillStyle = '#2a3a2a';
+    ctx.fillRect(x - 5, y - 6, 4, 10 + Math.max(0, legSwing));
+    ctx.fillRect(x + 1, y - 6, 4, 10 + Math.max(0, -legSwing));
+
+    ctx.fillStyle = active ? '#3a7e3a' : '#2a5a2a';
+    ctx.fillRect(x - 8, y - 22, 16, 16);
+
+    ctx.fillStyle = '#d4a06a';
+    ctx.beginPath(); ctx.arc(x, y - 28, 7, 0, Math.PI*2); ctx.fill();
+
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath(); ctx.ellipse(x, y - 33, 9, 5, 0, Math.PI, 0); ctx.fill();
+
+    const lampGlow = 0.6 + Math.sin(t/400) * 0.3;
+    ctx.save(); ctx.globalAlpha = lampGlow;
+    ctx.fillStyle = '#FFFF00';
+    ctx.beginPath(); ctx.arc(x - 3, y - 36, 3, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    if (mining) {
+        const swing = anim.swingAngle || Math.sin(t/200) * 0.8;
+        ctx.save(); ctx.translate(x - 10, y - 14); ctx.rotate(-0.5 + swing);
+        ctx.fillStyle = '#4a3a2a'; ctx.fillRect(-2, -14, 3, 16);
+        ctx.fillStyle = '#aaa'; ctx.fillRect(-8, -16, 10, 5);
+        ctx.fillStyle = '#666'; ctx.fillRect(-5, -13, 6, 3);
+        ctx.restore();
+    } else {
+        ctx.save(); ctx.translate(x + 10, y - 14); ctx.rotate(0.3);
+        ctx.fillStyle = '#4a3a2a'; ctx.fillRect(-2, -10, 3, 14);
+        ctx.fillStyle = '#aaa'; ctx.fillRect(-2, -14, 8, 5);
+        ctx.restore();
+    }
+
+    ctx.restore();
+}
+
 function roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath();
-    ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y);
-    ctx.arcTo(x+w,y, x+w,y+r, r); ctx.lineTo(x+w,y+h-r);
-    ctx.arcTo(x+w,y+h, x+w-r,y+h, r); ctx.lineTo(x+r,y+h);
-    ctx.arcTo(x,y+h, x,y+h-r, r); ctx.lineTo(x,y+r);
-    ctx.arcTo(x,y, x+r,y, r); ctx.closePath();
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+    ctx.arcTo(x+w,y,x+w,y+r,r); ctx.lineTo(x+w,y+h-r);
+    ctx.arcTo(x+w,y+h,x+w-r,y+h,r); ctx.lineTo(x+r,y+h);
+    ctx.arcTo(x,y+h,x,y+h-r,r); ctx.lineTo(x,y+r);
+    ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
 }
 
 function drawCloud(ctx, x, y, r) {
     ctx.save(); ctx.fillStyle = 'rgba(180,210,255,0.12)';
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI*2);
-    ctx.arc(x+r*0.8, y+r*0.1, r*0.7, 0, Math.PI*2);
-    ctx.arc(x-r*0.7, y+r*0.1, r*0.6, 0, Math.PI*2);
+    ctx.arc(x,y,r,0,Math.PI*2); ctx.arc(x+r*0.8,y+r*0.1,r*0.7,0,Math.PI*2); ctx.arc(x-r*0.7,y+r*0.1,r*0.6,0,Math.PI*2);
     ctx.fill(); ctx.restore();
 }
 
 function drawMoon(ctx, x, y, r, t) {
     ctx.save();
-    const g = ctx.createRadialGradient(x-2, y-2, 1, x, y, r);
-    g.addColorStop(0, '#fffde0'); g.addColorStop(1, '#d4c060');
+    const g = ctx.createRadialGradient(x-2,y-2,1,x,y,r);
+    g.addColorStop(0,'#fffde0'); g.addColorStop(1,'#d4c060');
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
-    // Craters
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
     ctx.fillStyle = 'rgba(0,0,0,0.08)';
-    [[x-4, y-3, 3],[x+5, y+4, 2],[x-1, y+6, 2.5]].forEach(([cx,cy,cr]) => {
-        ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI*2); ctx.fill();
+    [[x-4,y-3,3],[x+5,y+4,2],[x-1,y+6,2.5]].forEach(([cx,cy,cr]) => {
+        ctx.beginPath(); ctx.arc(cx,cy,cr,0,Math.PI*2); ctx.fill();
     });
     ctx.restore();
 }
 
 function drawGrass(ctx, W, sy) {
-    ctx.save();
-    ctx.fillStyle = '#3a6e3a';
+    ctx.save(); ctx.fillStyle = '#3a6e3a';
     for (let i = 0; i < W; i += 12) {
         const h = 3 + Math.sin(i * 0.35) * 2;
         ctx.fillRect(i, sy-16-h, 7, h+3);
@@ -539,13 +611,12 @@ function drawGrass(ctx, W, sy) {
 
 function drawGems(ctx, W, sy, H, t) {
     const gems = [
-        {x:0.4, y:0.65, type:'normal'},{x:0.6, y:0.75, type:'silver'},
-        {x:0.34, y:0.82, type:'gold'},{x:0.72, y:0.7, type:'normal'},
-        {x:0.52, y:0.88, type:'silver'}
+        {x:0.38,y:0.62,type:'normal'},{x:0.62,y:0.72,type:'silver'},
+        {x:0.3,y:0.8,type:'gold'},{x:0.72,y:0.68,type:'normal'},{x:0.5,y:0.85,type:'silver'}
     ];
     gems.forEach((g, i) => {
         const gx = W * g.x;
-        const gy = sy + (H - sy) * (g.y - SURFACE_Y_PCT) * 2.2;
+        const gy = sy + (H - sy) * (g.y - SURFACE_Y_PCT) * 2.4;
         const glow = 0.4 + Math.sin(t/900 + i*1.3) * 0.3;
         const colors = { normal:'#FFD700', silver:'#B0C4DE', gold:'#FF8C00' };
         ctx.save(); ctx.globalAlpha = glow;
@@ -562,29 +633,23 @@ function drawGems(ctx, W, sy, H, t) {
 
 function drawLiftShaft(ctx, x, topY, height, animY, t) {
     ctx.save();
-    const sw = 28;
-    // Shaft body
+    const sw = 30;
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(x - sw/2, topY, sw, height + 50);
-    // Rails
     ctx.strokeStyle = '#3a4a3a'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(x-7, topY); ctx.lineTo(x-7, topY+height+50); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x+7, topY); ctx.lineTo(x+7, topY+height+50); ctx.stroke();
-    // Rail cross-ties
+    ctx.beginPath(); ctx.moveTo(x-8,topY); ctx.lineTo(x-8,topY+height+50); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+8,topY); ctx.lineTo(x+8,topY+height+50); ctx.stroke();
     ctx.lineWidth = 1; ctx.strokeStyle = '#2a3a2a';
     for (let ry = topY; ry < topY+height+50; ry += 18) {
-        ctx.beginPath(); ctx.moveTo(x-7, ry); ctx.lineTo(x+7, ry); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x-8,ry); ctx.lineTo(x+8,ry); ctx.stroke();
     }
 
-    // Elevator cabin
     const cabinY = topY + 10 + animY * (height - 20);
-    const cabinH = 22; const cabinW = 24;
+    const cabinH = 26; const cabinW = 26;
 
-    // Cable
     ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x, cabinY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x,topY); ctx.lineTo(x,cabinY); ctx.stroke();
 
-    // Cabin glow when loading/unloading
     if (liftAnim.phase === 'loading' || liftAnim.phase === 'unloading') {
         ctx.save();
         ctx.shadowBlur = 12; ctx.shadowColor = '#8BC34A';
@@ -593,83 +658,45 @@ function drawLiftShaft(ctx, x, topY, height, animY, t) {
         ctx.fill(); ctx.restore();
     }
 
-    // Cabin body
-    const cabinGrad = ctx.createLinearGradient(x-cabinW/2, cabinY, x+cabinW/2, cabinY+cabinH);
-    cabinGrad.addColorStop(0, '#4a6a4a'); cabinGrad.addColorStop(1, '#2a4a2a');
-    ctx.fillStyle = cabinGrad;
+    const cGrad = ctx.createLinearGradient(x-cabinW/2,cabinY,x+cabinW/2,cabinY+cabinH);
+    cGrad.addColorStop(0,'#4a6a4a'); cGrad.addColorStop(1,'#2a4a2a');
+    ctx.fillStyle = cGrad;
     roundRect(ctx, x-cabinW/2, cabinY, cabinW, cabinH, 4); ctx.fill();
     ctx.strokeStyle = '#6a9a6a'; ctx.lineWidth = 1;
     roundRect(ctx, x-cabinW/2, cabinY, cabinW, cabinH, 4); ctx.stroke();
 
-    // Carrying indicator
     if (liftAnim.carrying > 0) {
-        ctx.fillStyle = '#FFD700'; ctx.font = `bold 8px 'Courier New'`;
+        ctx.fillStyle = '#FFD700'; ctx.font = `bold 7px 'Courier New'`;
         ctx.textAlign = 'center'; ctx.fillText(`×${liftAnim.carrying}`, x, cabinY + 14);
     } else {
-        // Person icon
-        ctx.fillStyle = '#9EC29E'; ctx.font = `10px serif`;
-        ctx.textAlign = 'center'; ctx.fillText('👷', x, cabinY + 14);
+        ctx.font = `12px serif`; ctx.textAlign = 'center';
+        ctx.fillText('🧑‍💼', x, cabinY + 16);
     }
 
-    // Shaft top housing
-    ctx.fillStyle = '#2a4a2a';
-    ctx.fillRect(x-18, topY-10, 36, 14);
-    ctx.fillStyle = '#3a6a3a';
-    ctx.fillRect(x-14, topY-14, 28, 8);
-    ctx.restore();
-}
-
-function drawMiner(ctx, x, y, t, active) {
-    ctx.save();
-    // Body
-    ctx.fillStyle = active ? '#3a6e3a' : '#2a4a2a';
-    ctx.fillRect(x-8, y-16, 16, 14);
-    // Head
-    ctx.fillStyle = '#d4a06a';
-    ctx.beginPath(); ctx.arc(x, y-22, 7, 0, Math.PI*2); ctx.fill();
-    // Helmet
-    ctx.fillStyle = '#FFD700';
-    ctx.beginPath(); ctx.ellipse(x, y-26, 9, 6, 0, Math.PI, 0); ctx.fill();
-    // Pickaxe swing
-    const swing = Math.sin(t/280) * 0.5;
-    ctx.save(); ctx.translate(x+10, y-10); ctx.rotate(swing);
-    ctx.fillStyle = '#4a3a2a'; ctx.fillRect(-2, -10, 3, 14);
-    ctx.fillStyle = '#aaa'; ctx.fillRect(-2, -14, 8, 5);
-    ctx.restore();
-    // Legs
-    const legL = Math.sin(t/280) * 3;
-    ctx.fillStyle = '#2a3a2a';
-    ctx.fillRect(x-7, y-2, 5, 8+legL);
-    ctx.fillRect(x+2, y-2, 5, 8-legL);
+    ctx.fillStyle = '#2a4a2a'; ctx.fillRect(x-18, topY-10, 36, 14);
+    ctx.fillStyle = '#3a6a3a'; ctx.fillRect(x-14, topY-14, 28, 8);
     ctx.restore();
 }
 
 function drawTrainTrack(ctx, x1, y, x2) {
     ctx.save();
     ctx.fillStyle = '#2a1a0a';
-    for (let tx = x1; tx < x2; tx += 16) {
-        ctx.fillRect(tx, y-1, 10, 5);
-    }
+    for (let tx = x1; tx < x2; tx += 16) { ctx.fillRect(tx, y-1, 10, 5); }
     ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(x1, y+1); ctx.lineTo(x2, y+1); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x1, y+4); ctx.lineTo(x2, y+4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x1,y+1); ctx.lineTo(x2,y+1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x1,y+4); ctx.lineTo(x2,y+4); ctx.stroke();
     ctx.restore();
 }
 
 function drawTrain(ctx, x, y, t, loaded, phase) {
     ctx.save();
-    const stopped = phase === 'loading' || phase === 'unloading';
-
-    // Wheels (animated when moving)
+    const stopped = phase === 'loadingAtLift' || phase === 'unloadingAtWarehouse';
     const wheelRot = stopped ? 0 : t / 200;
-    const wheelColor = '#1a1a1a';
-    const wheelPositions = [-14, 10, 30];
-    wheelPositions.forEach(wx => {
-        ctx.fillStyle = wheelColor;
+    [-14, 10, 30].forEach(wx => {
+        ctx.fillStyle = '#1a1a1a';
         ctx.beginPath(); ctx.arc(x+wx, y+14, 6, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = '#555'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(x+wx, y+14, 6, 0, Math.PI*2); ctx.stroke();
-        // Spokes
         if (!stopped) {
             ctx.save(); ctx.translate(x+wx, y+14); ctx.rotate(wheelRot);
             ctx.strokeStyle = '#444'; ctx.lineWidth = 1;
@@ -678,121 +705,75 @@ function drawTrain(ctx, x, y, t, loaded, phase) {
             ctx.restore();
         }
     });
-
-    // Main body
-    const bodyGrad = ctx.createLinearGradient(x-22, y-8, x+48, y+8);
-    bodyGrad.addColorStop(0, loaded ? '#7f0000' : '#8b3a0a');
-    bodyGrad.addColorStop(0.5, loaded ? '#c62828' : '#bf6314');
-    bodyGrad.addColorStop(1, loaded ? '#7f0000' : '#8b3a0a');
-    ctx.fillStyle = bodyGrad;
+    const bGrad = ctx.createLinearGradient(x-22,y-8,x+48,y+8);
+    bGrad.addColorStop(0, loaded?'#7f0000':'#8b3a0a');
+    bGrad.addColorStop(0.5, loaded?'#c62828':'#bf6314');
+    bGrad.addColorStop(1, loaded?'#7f0000':'#8b3a0a');
+    ctx.fillStyle = bGrad;
     roundRect(ctx, x-22, y-8, 72, 22, 5); ctx.fill();
-
-    // Metal rivets
     ctx.fillStyle = '#333';
-    [x-16, x-5, x+6, x+20, x+38].forEach(rx => {
+    [x-16,x-5,x+6,x+20,x+38].forEach(rx => {
         ctx.beginPath(); ctx.arc(rx, y+3, 2, 0, Math.PI*2); ctx.fill();
     });
-
-    // Windows
-    ctx.fillStyle = loaded ? '#ff8080' : '#a0d4ff';
+    ctx.fillStyle = loaded?'#ff8080':'#a0d4ff';
     roundRect(ctx, x-16, y-5, 14, 10, 2); ctx.fill();
     roundRect(ctx, x+4, y-5, 14, 10, 2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.fillRect(x-15, y-4, 4, 3);
-    ctx.fillRect(x+5, y-4, 4, 3);
-
-    // Chimney
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(x+28, y-18, 8, 12);
-    ctx.fillStyle = '#333';
-    ctx.fillRect(x+26, y-20, 12, 4);
-
-    // Smoke from chimney
+    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x+28, y-18, 8, 12);
+    ctx.fillStyle = '#333'; ctx.fillRect(x+26, y-20, 12, 4);
     if (loaded) {
         const smokeOff = Math.sin(t/250)*2;
         ctx.fillStyle = `rgba(20,15,10,0.7)`;
         ctx.beginPath(); ctx.arc(x+32+smokeOff, y-24, 5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = `rgba(30,20,15,0.5)`;
-        ctx.beginPath(); ctx.arc(x+34+smokeOff*0.5, y-31, 4, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = `rgba(40,30,20,0.3)`;
-        ctx.beginPath(); ctx.arc(x+35, y-37, 3.5, 0, Math.PI*2); ctx.fill();
-    } else {
-        // Light steam
-        ctx.fillStyle = `rgba(180,180,200,0.25)`;
-        ctx.beginPath(); ctx.arc(x+32, y-23, 3, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = `rgba(30,20,15,0.4)`;
+        ctx.beginPath(); ctx.arc(x+34, y-31, 4, 0, Math.PI*2); ctx.fill();
     }
-
-    // Stop indicator
-    if (stopped) {
-        ctx.fillStyle = 'rgba(255,200,0,0.9)';
-        ctx.beginPath(); ctx.arc(x-22, y-10, 5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.font = `bold 6px 'Courier New'`; ctx.textAlign = 'center';
-        ctx.fillText('⏸', x-22, y-7);
-    }
-
     ctx.restore();
 }
 
 function drawWarehouse(ctx, x, y, t) {
     ctx.save();
-    // Building shadow
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     roundRect(ctx, x-32, y+4, 66, 90, 4); ctx.fill();
-    // Main body
-    const wbg = ctx.createLinearGradient(x-33, y, x+33, y+88);
-    wbg.addColorStop(0, '#2a4a2a'); wbg.addColorStop(1, '#1a3a1a');
+    const wbg = ctx.createLinearGradient(x-33,y,x+33,y+88);
+    wbg.addColorStop(0,'#2a4a2a'); wbg.addColorStop(1,'#1a3a1a');
     ctx.fillStyle = wbg;
     roundRect(ctx, x-33, y, 66, 88, 4); ctx.fill();
     ctx.strokeStyle = '#3a6a3a'; ctx.lineWidth = 1;
     roundRect(ctx, x-33, y, 66, 88, 4); ctx.stroke();
-    // Roof
     ctx.fillStyle = '#4a7a4a';
-    ctx.beginPath(); ctx.moveTo(x-38, y+4); ctx.lineTo(x, y-18); ctx.lineTo(x+38, y+4); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x-38,y+4); ctx.lineTo(x,y-18); ctx.lineTo(x+38,y+4); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = '#5a8a5a'; ctx.lineWidth = 1.5; ctx.stroke();
-    // Roof ridge
     ctx.strokeStyle = '#6a9a6a'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(x, y-18); ctx.lineTo(x, y); ctx.stroke();
-    // Door
+    ctx.beginPath(); ctx.moveTo(x,y-18); ctx.lineTo(x,y); ctx.stroke();
     ctx.fillStyle = '#1a2a1a';
     roundRect(ctx, x-10, y+52, 20, 36, 3); ctx.fill();
     ctx.strokeStyle = '#3a5a3a'; ctx.lineWidth = 1;
     roundRect(ctx, x-10, y+52, 20, 36, 3); ctx.stroke();
-    // Windows
+    const glowA = 0.3 + Math.sin(t/2000)*0.1;
     ctx.fillStyle = '#1a3a5a'; ctx.fillRect(x-26, y+12, 16, 12); ctx.fillRect(x+10, y+12, 16, 12);
-    // Window glow
-    const glowAlpha = 0.3 + Math.sin(t/2000)*0.1;
-    ctx.fillStyle = `rgba(150,220,150,${glowAlpha})`;
+    ctx.fillStyle = `rgba(150,220,150,${glowA})`;
     ctx.fillRect(x-25, y+13, 14, 10); ctx.fillRect(x+11, y+13, 14, 10);
-    // Sign
     ctx.fillStyle = '#FFD700'; ctx.font = `bold 7px 'Courier New', monospace`;
     ctx.textAlign = 'center'; ctx.fillText('СКЛАД', x, y+46);
-    // Fill indicator
     const fillPct = gameState.warehouse.current / getWhMax();
-    const fillH = Math.floor(fillPct * 40);
+    const fillH = Math.floor(fillPct * 38);
     if (fillH > 0) {
         ctx.fillStyle = `rgba(76,175,80,${0.3 + fillPct * 0.5})`;
-        roundRect(ctx, x-28, y + 32 + (40-fillH), 56, fillH, 2); ctx.fill();
+        roundRect(ctx, x-28, y+32+(38-fillH), 56, fillH, 2); ctx.fill();
     }
-    // Coin count
     ctx.fillStyle = '#CCFF90'; ctx.font = `bold 9px 'Courier New', monospace`;
     ctx.fillText(formatNum(getTotalWarehouse()), x, y+58);
     ctx.restore();
 }
 
-/* ═══════════════════════════════════════════
-   AUDIO SYSTEM
-   ═══════════════════════════════════════════ */
 let audioCtx = null;
-let musicSource = null;
-let musicBuffer = null;
-let musicGain = null;
+let bgMelodyInterval = null;
+let bgGainNode = null;
 let musicEnabled = false;
 
 function initAudio() {
     if (audioCtx) return;
-    try {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    } catch(e) { console.log('Audio not available'); }
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
 }
 
 function playClickSound() {
@@ -812,8 +793,7 @@ function playClickSound() {
 function playSuccessSound() {
     if (!audioCtx) return;
     try {
-        const notes = [523, 659, 784, 1047];
-        notes.forEach((freq, i) => {
+        [523,659,784,1047].forEach((freq,i) => {
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.connect(gain); gain.connect(audioCtx.destination);
@@ -841,43 +821,26 @@ function playFailSound() {
     } catch(e) {}
 }
 
-// Background music via Web Audio API (Carefree-inspired looping melody)
-// Users can also place /audio/carefree.mp3 for the real track
-let bgMelodyInterval = null;
-let bgGainNode = null;
-
 function startBgMelody() {
     if (!audioCtx || bgMelodyInterval) return;
     bgGainNode = audioCtx.createGain();
     bgGainNode.gain.value = 0.06;
     bgGainNode.connect(audioCtx.destination);
-
-    // Carefree-inspired note sequence
-    const melody = [
-        523, 659, 784, 659, 523, 587, 523, 0,
-        659, 784, 880, 784, 659, 698, 659, 0,
-        523, 587, 659, 784, 659, 587, 523, 0
-    ];
-    const bassDurations = [392, 349, 330, 349];
+    const melody = [523,659,784,659,523,587,523,0,659,784,880,784,659,698,659,0,523,587,659,784,659,587,523,0];
     let noteIdx = 0;
     let time = audioCtx.currentTime;
-
     function scheduleNotes() {
         while (time < audioCtx.currentTime + 0.5) {
             const freq = melody[noteIdx % melody.length];
             if (freq > 0) {
                 const osc = audioCtx.createOscillator();
-                osc.type = 'sine';
-                osc.frequency.value = freq;
+                osc.type = 'sine'; osc.frequency.value = freq;
                 osc.connect(bgGainNode);
-                osc.start(time);
-                osc.stop(time + 0.18);
+                osc.start(time); osc.stop(time + 0.18);
             }
-            time += 0.2;
-            noteIdx++;
+            time += 0.2; noteIdx++;
         }
     }
-
     bgMelodyInterval = setInterval(scheduleNotes, 300);
     scheduleNotes();
 }
@@ -892,55 +855,38 @@ function toggleMusic() {
     musicEnabled = !musicEnabled;
     const btn = document.getElementById('music-toggle-btn');
     if (musicEnabled) {
-        // Try HTML5 audio first (actual MP3)
         const bgAudio = document.getElementById('bg-music');
         bgAudio.volume = 0.4;
-        bgAudio.play().catch(() => {
-            // Fallback: Web Audio synth
-            startBgMelody();
-        });
-        btn.textContent = '🔊';
-        showToast('🎵 Музыка включена');
+        bgAudio.play().catch(() => startBgMelody());
+        btn.textContent = '🔊'; showToast('🎵 Музыка включена');
     } else {
         document.getElementById('bg-music').pause();
         stopBgMelody();
-        btn.textContent = '🔇';
-        showToast('🔇 Музыка выключена');
+        btn.textContent = '🔇'; showToast('🔇 Музыка выключена');
     }
 }
 
-// Add click sound to all buttons
 document.addEventListener('click', (e) => {
     if (e.target.matches('button, .forge-slot, .nav-btn, .lb-tab, .recipe-tab')) {
-        initAudio();
-        playClickSound();
+        initAudio(); playClickSound();
     }
 }, true);
 
-/* ═══════════════════════════════════════════
-   FORGE / CRAFT SYSTEM
-   ═══════════════════════════════════════════ */
-let forgeRecipe = 'normal'; // 'normal' = normal→silver, 'silver' = silver→gold
-let forgeSlots  = [false, false, false, false]; // filled slots
+let forgeRecipe = 'normal';
+let forgeSlots  = [false,false,false,false];
 const FORGE_RECIPES = {
-    normal: { inputType: 'normal', inputPerSlot: 2, outputType: 'silver', outputIcon: '🥈', inputIcon: '🪙' },
-    silver: { inputType: 'silver', inputPerSlot: 1, outputType: 'gold',   outputIcon: '🏅', inputIcon: '🥈' }
+    normal: { inputType:'normal', inputPerSlot:2, outputType:'silver', outputIcon:'🥈', inputIcon:'🪙' },
+    silver: { inputType:'silver', inputPerSlot:1, outputType:'gold',   outputIcon:'🏅', inputIcon:'🥈' }
 };
 
 function selectRecipe(type, btn) {
-    forgeRecipe = type;
-    forgeSlots  = [false, false, false, false];
+    forgeRecipe = type; forgeSlots = [false,false,false,false];
     document.querySelectorAll('.recipe-tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
-    renderForgeSlots();
-    updateForgeUI();
+    renderForgeSlots(); updateForgeUI();
 }
 
-function toggleSlot(idx) {
-    forgeSlots[idx] = !forgeSlots[idx];
-    renderForgeSlots();
-    updateForgeUI();
-}
+function toggleSlot(idx) { forgeSlots[idx] = !forgeSlots[idx]; renderForgeSlots(); updateForgeUI(); }
 
 function renderForgeSlots() {
     const recipe = FORGE_RECIPES[forgeRecipe];
@@ -955,11 +901,10 @@ function renderForgeSlots() {
             slot.innerHTML = `<span class="plus-icon">+</span>`;
         }
     }
-    // Update result slot
     const filledCount = forgeSlots.filter(Boolean).length;
     const resultEl = document.getElementById('forge-result');
     resultEl.className = filledCount >= 2 ? 'forge-result-cell has-result' : 'forge-result-cell';
-    resultEl.textContent = filledCount >= 2 ? recipe.outputIcon : '?';
+    resultEl.textContent = filledCount >= 2 ? FORGE_RECIPES[forgeRecipe].outputIcon : '?';
 }
 
 function updateForgeUI() {
@@ -967,17 +912,14 @@ function updateForgeUI() {
     const filledCount = forgeSlots.filter(Boolean).length;
     const totalInput = filledCount * recipe.inputPerSlot;
     const balance = gameState.coins[recipe.inputType];
-
-    const chanceMap = { 0:0, 1:0, 2:50, 3:70, 4:90 };
+    const chanceMap = {0:0,1:0,2:50,3:70,4:90};
     const chance = chanceMap[filledCount] || 0;
-
     document.getElementById('forge-chance').textContent = chance > 0 ? `${chance}%` : '—';
     document.getElementById('forge-bal-val').textContent = formatNum(balance);
     document.getElementById('forge-hint').textContent =
         filledCount === 0 ? 'Нажмите + чтобы добавить материалы (2–4 слота)' :
         filledCount === 1 ? 'Добавьте ещё минимум 1 слот' :
         `Нужно: ${totalInput} ${recipe.inputIcon}  |  Есть: ${balance}`;
-
     const canForge = filledCount >= 2 && balance >= totalInput;
     document.getElementById('forge-btn').disabled = !canForge;
 }
@@ -987,91 +929,59 @@ function doForge() {
     const recipe = FORGE_RECIPES[forgeRecipe];
     const filledCount = forgeSlots.filter(Boolean).length;
     if (filledCount < 2) { showToast('Заполните минимум 2 слота!'); return; }
-
     const totalInput = filledCount * recipe.inputPerSlot;
-    if (gameState.coins[recipe.inputType] < totalInput) {
-        showToast(`Недостаточно монет! Нужно: ${totalInput}`);
-        return;
-    }
-
+    if (gameState.coins[recipe.inputType] < totalInput) { showToast(`Недостаточно монет! Нужно: ${totalInput}`); return; }
     gameState.coins[recipe.inputType] -= totalInput;
-    const chanceMap = { 2:50, 3:70, 4:90 };
+    const chanceMap = {2:50,3:70,4:90};
     const chance = chanceMap[filledCount] || 50;
     const success = Math.random() * 100 < chance;
-
     if (success) {
         gameState.coins[recipe.outputType] += 1;
         gameState.stats['total' + recipe.outputType[0].toUpperCase() + recipe.outputType.slice(1)] =
             (gameState.stats['total' + recipe.outputType[0].toUpperCase() + recipe.outputType.slice(1)] || 0) + 1;
         playSuccessSound();
-    } else {
-        playFailSound();
-    }
-
-    saveState();
-    updateHUD();
-    forgeSlots = [false, false, false, false];
-    renderForgeSlots();
-    updateForgeUI();
+    } else { playFailSound(); }
+    saveState(); updateHUD();
+    forgeSlots = [false,false,false,false];
+    renderForgeSlots(); updateForgeUI();
     showForgeResult(success, recipe.outputIcon, recipe.outputType);
 }
 
 function showForgeResult(success, icon, coinType) {
     const overlay = document.createElement('div');
     overlay.className = 'forge-overlay';
-
-    // Particles for success
     let particlesHTML = '';
     if (success) {
         particlesHTML = '<div class="forge-particles">';
         for (let i = 0; i < 16; i++) {
-            const tx = (Math.random() - 0.5) * 300;
-            const ty = -100 - Math.random() * 200;
-            const dur = 0.8 + Math.random() * 0.6;
-            particlesHTML += `<div class="particle" style="
-                left:50%; top:50%; transform:translate(-50%,-50%);
-                --tx:${tx}px; --ty:${ty}px; --dur:${dur}s;
-                animation-delay:${Math.random()*0.3}s;
-            ">${icon}</div>`;
+            const tx = (Math.random()-0.5)*300;
+            const ty = -100 - Math.random()*200;
+            const dur = 0.8 + Math.random()*0.6;
+            particlesHTML += `<div class="particle" style="left:50%;top:50%;transform:translate(-50%,-50%);--tx:${tx}px;--ty:${ty}px;--dur:${dur}s;animation-delay:${Math.random()*0.3}s;">${icon}</div>`;
         }
         particlesHTML += '</div>';
     }
-
-    overlay.innerHTML = `
-        ${particlesHTML}
-        <div class="forge-result-icon ${success ? 'win-anim' : 'fail-anim'}">${success ? icon : '💨'}</div>
-        <div class="forge-result-msg ${success ? 'win' : 'fail'}">${success ? '✅ УСПЕХ!' : '❌ НЕУДАЧА'}</div>
-        <div class="forge-result-sub">${success ? `+1 ${coinType === 'silver' ? 'Серебряная монета!' : 'Золотая монета!'}` : 'Материалы использованы...'}</div>
-        <div class="forge-tap-close">Нажмите чтобы закрыть</div>
-    `;
+    overlay.innerHTML = `${particlesHTML}
+        <div class="forge-result-icon ${success?'win-anim':'fail-anim'}">${success?icon:'💨'}</div>
+        <div class="forge-result-msg ${success?'win':'fail'}">${success?'✅ УСПЕХ!':'❌ НЕУДАЧА'}</div>
+        <div class="forge-result-sub">${success?`+1 ${coinType==='silver'?'Серебряная монета!':'Золотая монета!'}`:' Материалы использованы...'}</div>
+        <div class="forge-tap-close">Нажмите чтобы закрыть</div>`;
     overlay.onclick = () => overlay.remove();
     document.body.appendChild(overlay);
-
     setTimeout(() => overlay.remove(), 3000);
 }
 
-/* ═══════════════════════════════════════════
-   HUD / UI UPDATES
-   ═══════════════════════════════════════════ */
 function updateHUD() {
     document.getElementById('hud-normal').textContent = formatNum(gameState.coins.normal);
     document.getElementById('hud-silver').textContent = formatNum(gameState.coins.silver);
     document.getElementById('hud-gold').textContent   = formatNum(gameState.coins.gold);
 
-    const rate = Math.round(getMinerCap() / getMinerSpeed() * 60 * gameState.mines.filter(m=>m.unlocked).length);
-    document.getElementById('hud-rate').textContent = `${rate}/мин`;
-
-    const wh = gameState.warehouse.coins;
-    document.getElementById('wh-normal').textContent = formatNum(wh.normal||0);
-    document.getElementById('wh-silver').textContent = formatNum(wh.silver||0);
-    document.getElementById('wh-gold').textContent   = formatNum(wh.gold||0);
-
     const total = getTotalWarehouse();
     const max   = getWhMax();
-    document.getElementById('wh-current').textContent = total;
-    document.getElementById('wh-max').textContent     = max;
+    document.getElementById('hud-cur').textContent = total;
+    document.getElementById('hud-max').textContent = max;
     const fillPct = Math.min(100, total / max * 100);
-    document.getElementById('wh-fill').style.width = fillPct + '%';
+    document.getElementById('hud-sfill').style.width = fillPct + '%';
 
     document.getElementById('prof-normal').textContent = formatNum(gameState.coins.normal);
     document.getElementById('prof-silver').textContent = formatNum(gameState.coins.silver);
@@ -1092,19 +1002,17 @@ function renderMineUnlockBar() {
         btn.className = 'mine-slot-btn';
         if (mine && mine.unlocked) {
             btn.className += ' active';
-            btn.innerHTML = i === 0 ? '⛏️' : `⛏️`;
+            btn.innerHTML = '⛏️';
             btn.title = `Шахта ${i+1}`;
             btn.onclick = () => { gameState.activeMine = i; saveState(); showToast(`Шахта ${i+1} выбрана`); };
         } else if (i === gameState.mines.length) {
-            // Next unlockable mine
             const cost = MINE_UNLOCK_COSTS[i] || 99999;
             btn.className += ' can-unlock';
             btn.innerHTML = '+';
             btn.title = `Открыть шахту ${i+1} — ${formatNum(cost)} 🪙`;
             btn.onclick = () => unlockMine(i);
         } else {
-            btn.innerHTML = '🔒';
-            btn.title = `Шахта ${i+1}`;
+            btn.innerHTML = '🔒'; btn.title = `Шахта ${i+1}`;
         }
         bar.appendChild(btn);
     }
@@ -1115,15 +1023,12 @@ function unlockMine(idx) {
     if (!cost) { showToast('Нет такой шахты'); return; }
     if (gameState.coins.normal < cost) { showToast(`Нужно ${formatNum(cost)} 🪙`); return; }
     gameState.coins.normal -= cost;
-    gameState.mines.push({ id: idx, unlocked: true, storageCurrent: 0, storageMax: 50, level: 1 });
-    saveState();
-    updateHUD();
+    gameState.mines.push({ id:idx, unlocked:true, storageCurrent:0, storageMax:50, level:1 });
+    minerAnims.push({ posX:0.15, phase:'idle', timer:0, swingAngle:0, manualTrigger:false });
+    saveState(); updateHUD();
     showToast(`⛏️ Шахта ${idx+1} открыта!`);
 }
 
-/* ═══════════════════════════════════════════
-   SCREEN SWITCHING
-   ═══════════════════════════════════════════ */
 function switchScreen(screen, btn) {
     document.querySelectorAll('.screen').forEach(s => { s.classList.remove('active'); s.classList.add('hidden'); });
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -1136,9 +1041,6 @@ function switchScreen(screen, btn) {
     if (screen === 'profile') updateProfileScreen();
 }
 
-/* ═══════════════════════════════════════════
-   CANVAS CLICK HANDLERS
-   ═══════════════════════════════════════════ */
 canvas.addEventListener('click', (e) => {
     const rect = canvas.getBoundingClientRect();
     const cx = (e.clientX - rect.left) * (W / rect.width);
@@ -1147,20 +1049,72 @@ canvas.addEventListener('click', (e) => {
     const liftX = W * LIFT_X_PCT;
     const whX   = W * WAREHOUSE_X_PCT;
 
-    if (cy > sy + H*0.1 && cx > W*0.28 && cx < W*0.82) {
-        openUpgradePanel('miner'); return;
+    const unlockedMines = gameState.mines.filter(m => m.unlocked);
+    const firstMineX = W * 0.34;
+    for (let i = 0; i < unlockedMines.length; i++) {
+        const mx = firstMineX + i * (unlockedMines.length > 1 ? (W * 0.54 / unlockedMines.length) : 0);
+        const cabinTop = sy + (H - sy) * 0.18;
+        const cabinW = Math.min(110, (W * 0.55) / unlockedMines.length - 8);
+        const cabinH = Math.min(70, (H - sy) * 0.45);
+
+        if (cx >= mx - cabinW/2 && cx <= mx + cabinW/2 && cy >= cabinTop && cy <= cabinTop + cabinH) {
+            const mgrBtnX = mx + cabinW * 0.2;
+            const mgrBtnY = cabinTop + cabinH * 0.4;
+            const distToMgrBtn = Math.hypot(cx - mgrBtnX, cy - mgrBtnY);
+
+            if (!gameState.managers.miner && distToMgrBtn < 16) {
+                openUpgradePanel('miner');
+            } else if (!gameState.managers.miner) {
+                if (minerAnims[i] && minerAnims[i].phase === 'idle') {
+                    minerAnims[i].manualTrigger = true;
+                    showToast('⛏️ Один цикл добычи!');
+                }
+            } else {
+                openUpgradePanel('miner');
+            }
+            return;
+        }
     }
-    if (Math.abs(cx - liftX) < 40 && cy > sy - 60 && cy < sy + H*0.3) {
-        openUpgradePanel('lift'); return;
+
+    if (Math.abs(cx - liftX) < 35 && cy > sy - 60 && cy < sy + H * 0.3) {
+        if (!gameState.managers.lift) {
+            if (liftAnim.phase === 'idle') {
+                liftAnim.manualTrigger = true;
+                showToast('🚡 Один цикл лифта!');
+            } else {
+                openUpgradePanel('lift');
+            }
+        } else {
+            openUpgradePanel('lift');
+        }
+        return;
     }
+
+    const trackX1 = liftX + 26;
+    const trackX2 = whX - 28;
+    const trainDrawX = trackX1 + (trackX2 - trackX1) * trainAnim.x;
+    if (Math.abs(cx - trainDrawX) < 50 && cy > sy - 20 && cy < sy + 40) {
+        if (!gameState.managers.train) {
+            if (trainAnim.phase === 'idle' && getTotalWarehouse() > 0) {
+                trainAnim.manualTrigger = true;
+                showToast('🚂 Один рейс поезда!');
+            } else if (trainAnim.phase === 'idle') {
+                showToast('Нет груза для перевозки!');
+            } else {
+                openUpgradePanel('train');
+            }
+        } else {
+            openUpgradePanel('train');
+        }
+        return;
+    }
+
     if (Math.abs(cx - whX) < 55 && cy < sy + 10) {
-        openUpgradePanel('warehouse'); return;
+        openUpgradePanel('warehouse');
+        return;
     }
 });
 
-/* ═══════════════════════════════════════════
-   UPGRADE PANEL
-   ═══════════════════════════════════════════ */
 let currentUpgradeTarget = null;
 
 function openUpgradePanel(target) {
@@ -1176,6 +1130,9 @@ function openUpgradePanel(target) {
     } else if (target === 'lift') {
         title.textContent = '🚡 ЛИФТ';
         content.innerHTML = buildUpgradeHTML(['liftSpeed','liftCap'], mult) + buildManagerHTML('lift');
+    } else if (target === 'train') {
+        title.textContent = '🚂 ПОЕЗД';
+        content.innerHTML = buildManagerHTML('train');
     } else if (target === 'warehouse') {
         title.textContent = '🏦 ХРАНИЛИЩЕ';
         content.innerHTML = buildUpgradeHTML(['mineStorageCap','warehouseCap'], mult);
@@ -1191,9 +1148,7 @@ function buildUpgradeHTML(keys, costMult) {
         const canAfford = !isMax && gameState.coins.normal >= cost;
         const btnClass  = isMax ? 'maxed' : (canAfford ? '' : 'insufficient');
         const btnText   = isMax ? 'МАКС' : `${formatNum(cost)} 🪙`;
-        const desc = cfg.speedMult
-            ? `Скорость: ×${cfg.speedMult[lvl-1].toFixed(1)}`
-            : `Бонус: +${cfg.capAdd[lvl-1]}`;
+        const desc = cfg.speedMult ? `Скорость: ×${cfg.speedMult[lvl-1].toFixed(1)}` : `Бонус: +${cfg.capAdd[lvl-1]}`;
         return `<div class="upgrade-section">
             <div class="upgrade-section-title">${cfg.icon} ${cfg.name}</div>
             <div class="upgrade-item">
@@ -1218,20 +1173,18 @@ function buildManagerHTML(type) {
         <div class="upgrade-item" style="flex-direction:column;align-items:flex-start;gap:7px">
             <div class="upgrade-item-name">${cfg.icon} ${cfg.name}</div>
             <div class="upgrade-item-desc">${cfg.desc}</div>
-            <button class="manager-buy-btn ${owned ? 'owned' : ''}" onclick="buyManager('${type}')">
+            <button class="manager-buy-btn ${owned?'owned':''}" onclick="buyManager('${type}')">
                 ${owned ? '✅ НАНЯТ' : `НАНЯТЬ — ${formatNum(cost)} 🪙`}
             </button>
         </div>
     </div>`;
 }
 
-function closeUpgradePanel() {
-    document.getElementById('upgrade-panel').classList.add('hidden');
-}
+function closeUpgradePanel() { document.getElementById('upgrade-panel').classList.add('hidden'); }
 
 function doUpgrade(key) {
-    const cfg  = UPGRADE_CONFIG[key];
-    const lvl  = gameState.upgradeLevels[key];
+    const cfg = UPGRADE_CONFIG[key];
+    const lvl = gameState.upgradeLevels[key];
     if (lvl >= 10) { showToast('Максимальный уровень!'); return; }
     const cost = Math.ceil(cfg.costs[lvl-1] * (isHappyHour() ? 0.95 : 1.0));
     if (gameState.coins.normal < cost) { showToast('Недостаточно монет!'); return; }
@@ -1252,16 +1205,12 @@ function buyManager(type) {
     showToast(`${cfg.name} нанят!`);
 }
 
-/* ═══════════════════════════════════════════
-   PROFILE & LEADERBOARD
-   ═══════════════════════════════════════════ */
 function updateProfileScreen() {
     document.getElementById('profile-name').textContent = USER.name;
     document.getElementById('profile-id').textContent   = `ID: ${USER.id}`;
     document.getElementById('ref-link').textContent = `https://t.me/${BOT_USERNAME}?start=${USER.id}`;
     document.getElementById('ref-count').textContent  = gameState.referrals || 0;
     updateHUD();
-    // Fetch referral count from API
     fetch(`${API_BASE}/referrals?user_id=${USER.id}&init_data=${encodeURIComponent(tg?.initData||'')}`)
         .then(r => r.json())
         .then(d => {
@@ -1292,14 +1241,12 @@ async function loadLeaderboard(type) {
     list.innerHTML = '<div class="lb-loading">ЗАГРУЗКА...</div>';
     try {
         const res  = await fetch(`${API_BASE}/leaderboard/${type}`);
-        if (!res.ok) throw new Error('Server error');
+        if (!res.ok) throw new Error('err');
         const data = await res.json();
         renderLeaderboard(data.players || data, type);
     } catch(e) {
-        // Fallback: show current user only
         const myCoins = type === 'normal' ? gameState.coins.normal : type === 'silver' ? gameState.coins.silver : gameState.coins.gold;
         renderLeaderboard([{ name: USER.name, amount: myCoins, isMe: true }], type);
-        list.innerHTML += `<div class="lb-loading" style="font-size:11px;padding:10px">Подключите бэкенд для полного рейтинга</div>`;
     }
 }
 
@@ -1309,17 +1256,14 @@ function renderLeaderboard(data, type) {
     list.innerHTML = data.slice(0, 100).map((item, i) => {
         const rankClass = i===0?'gold-rank':i===1?'silver-rank':i===2?'bronze-rank':'';
         const rankEmoji = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`;
-        return `<div class="lb-item ${rankClass} ${item.isMe ? 'my-rank' : ''}">
+        return `<div class="lb-item ${rankClass} ${item.isMe?'my-rank':''}">
             <div class="lb-rank">${rankEmoji}</div>
-            <div class="lb-name">${item.name}${item.isMe ? ' (Вы)' : ''}</div>
+            <div class="lb-name">${item.name}${item.isMe?' (Вы)':''}</div>
             <div class="lb-amount">${formatNum(item.amount)} ${icon}</div>
         </div>`;
     }).join('');
 }
 
-/* ═══════════════════════════════════════════
-   EXCHANGE / DEPOSIT / WITHDRAW
-   ═══════════════════════════════════════════ */
 function openExchange() {
     showModal(`<div class="modal-title">💱 ОБМЕН НА TON</div>
         <div class="modal-section">
@@ -1372,6 +1316,12 @@ function openDeposit() {
     showModal(`<div class="modal-title">⭐ ПОПОЛНИТЬ STARS</div>
         <div class="modal-section">
             <div class="modal-label">КОЛИЧЕСТВО STARS (МИН. 100)</div>
+            <div class="stars-presets" style="display:flex;gap:7px;margin-bottom:10px">
+                <button class="modal-btn blue" style="padding:8px 4px;font-size:11px" onclick="document.getElementById('dep-stars').value=100;updateDepInfo()">100⭐</button>
+                <button class="modal-btn blue" style="padding:8px 4px;font-size:11px" onclick="document.getElementById('dep-stars').value=250;updateDepInfo()">250⭐</button>
+                <button class="modal-btn blue" style="padding:8px 4px;font-size:11px" onclick="document.getElementById('dep-stars').value=500;updateDepInfo()">500⭐</button>
+                <button class="modal-btn blue" style="padding:8px 4px;font-size:11px" onclick="document.getElementById('dep-stars').value=1000;updateDepInfo()">1000⭐</button>
+            </div>
             <input class="modal-input" type="number" id="dep-stars" placeholder="100" min="100">
             <div class="modal-info" id="dep-stars-info">100 ⭐ → 1000 🪙 + 100 🥈</div>
         </div>
@@ -1379,45 +1329,67 @@ function openDeposit() {
             <div style="font-family:var(--font);font-size:11px;color:#FFD700;letter-spacing:1px">КОНВЕРТАЦИЯ</div>
             <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:4px;font-family:var(--font);line-height:1.6">
                 70% → 🪙 Обычные монеты<br>
-                30% → 🥈 Серебряные монеты<br>
-                100 ⭐ = 1 TON (окупается за 7 дней)
+                30% → 🥈 Серебряные монеты
             </div>
         </div>
-        <button class="modal-btn blue" onclick="confirmDepositStars()">Оплатить через Telegram</button>
+        <button class="modal-btn blue" onclick="confirmDepositStars()">⭐ Оплатить через Telegram</button>
         <button class="modal-cancel" onclick="closeModal()">Отмена</button>`);
-    document.getElementById('dep-stars').addEventListener('input', function() {
-        const n = Math.floor(+this.value * 10);
-        const s = Math.floor(+this.value * 1);
-        document.getElementById('dep-stars-info').textContent = `${this.value} ⭐ → ${n} 🪙 + ${s} 🥈`;
-    });
+    document.getElementById('dep-stars').addEventListener('input', updateDepInfo);
 }
 
-function confirmDepositStars() {
+function updateDepInfo() {
+    const el = document.getElementById('dep-stars');
+    if (!el) return;
+    const v = +el.value || 0;
+    const n = Math.floor(v * 10);
+    const s = Math.floor(v);
+    const info = document.getElementById('dep-stars-info');
+    if (info) info.textContent = `${v} ⭐ → ${n} 🪙 + ${s} 🥈`;
+}
+
+async function confirmDepositStars() {
     const amt = parseInt(document.getElementById('dep-stars').value)||0;
     if (amt < 100) { showToast('Минимум 100 Stars!'); return; }
+    closeModal();
+
     if (tg) {
-        tg.openInvoice(`https://t.me/${BOT_USERNAME}?start=pay_stars_${amt}`, (status) => {
-            if (status === 'paid') {
-                // Convert: 70% normal, 30% silver
-                // 100 stars = 1000 normal + 100 silver (10 normal per star, 1 silver per star)
-                const normalGain = Math.floor(amt * 10);
-                const silverGain = Math.floor(amt * 1);
-                gameState.coins.normal += normalGain;
-                gameState.coins.silver += silverGain;
-                saveState(); updateHUD();
-                showToast(`✅ +${normalGain}🪙 +${silverGain}🥈 зачислено!`);
+        showToast('⏳ Создание счёта...');
+        try {
+            const res = await fetch(`${API_BASE}/create-stars-invoice`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: USER.id, stars: amt, init_data: tg.initData })
+            });
+            const data = await res.json();
+            if (data.invoice_url) {
+                tg.openInvoice(data.invoice_url, (status) => {
+                    if (status === 'paid') {
+                        const normalGain = Math.floor(amt * 10);
+                        const silverGain = Math.floor(amt);
+                        gameState.coins.normal += normalGain;
+                        gameState.coins.silver += silverGain;
+                        saveState(); updateHUD();
+                        showToast(`✅ +${normalGain}🪙 +${silverGain}🥈 зачислено!`);
+                    } else if (status === 'cancelled') {
+                        showToast('Оплата отменена');
+                    } else if (status === 'failed') {
+                        showToast('❌ Ошибка оплаты');
+                    }
+                });
+            } else {
+                throw new Error(data.error || 'no url');
             }
-        });
+        } catch(e) {
+            showToast('❌ Ошибка создания счёта. Попробуйте позже.');
+        }
     } else {
-        // Demo mode
         const normalGain = Math.floor(amt * 10);
-        const silverGain = Math.floor(amt * 1);
+        const silverGain = Math.floor(amt);
         gameState.coins.normal += normalGain;
         gameState.coins.silver += silverGain;
         saveState(); updateHUD();
-        showToast(`✅ +${normalGain}🪙 +${silverGain}🥈 (демо)`);
+        showToast(`✅ +${normalGain}🪙 +${silverGain}🥈 (демо режим)`);
     }
-    closeModal();
 }
 
 function openWithdraw() {
@@ -1443,12 +1415,6 @@ function doWithdraw() {
     fetch(`${API_BASE}/withdraw`, { method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ user_id:USER.id, address:addr, amount:amt, init_data:tg?.initData }) }).catch(()=>{});
 }
-
-/* ═══════════════════════════════════════════
-   ADMIN
-   ═══════════════════════════════════════════ */
-const ADMIN_IDS = ['123456789'];
-function isAdmin() { return ADMIN_IDS.includes(String(USER.id)); }
 
 function adminSaveRates() {
     const n = parseFloat(document.getElementById('adm-normal-pct').value)||70;
@@ -1498,13 +1464,9 @@ function adminRemoveCoins() {
     showToast(`✅ Списано: ${n}🪙 ${s}🥈 ${g}🏅`);
 }
 
-/* ═══════════════════════════════════════════
-   MODAL & TOAST
-   ═══════════════════════════════════════════ */
 function showModal(html) {
-    const overlay = document.getElementById('modal-overlay');
     document.getElementById('modal-content').innerHTML = html;
-    overlay.classList.remove('hidden');
+    document.getElementById('modal-overlay').classList.remove('hidden');
 }
 function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
 
@@ -1517,23 +1479,57 @@ function showToast(msg) {
     toastTimeout = setTimeout(() => toast.classList.add('hidden'), 2600);
 }
 
-/* ═══════════════════════════════════════════
-   UTILS
-   ═══════════════════════════════════════════ */
 function formatNum(n) {
     if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
     if (n >= 1000)    return (n/1000).toFixed(1) + 'K';
     return Math.floor(n).toString();
 }
 
-/* ═══════════════════════════════════════════
-   INIT
-   ═══════════════════════════════════════════ */
-function init() {
-    // Migrate old state coins format
-    if (gameState.warehouse && !gameState.warehouse.coins) {
-        gameState.warehouse.coins = { normal: 0, silver: 0, gold: 0 };
+const TUTORIAL_STEPS = [
+    { text: 'Привет! Я твой шахтёр! 👷\n\nДобро пожаловать в GIFTS TYCOON!\nЗдесь ты строишь собственную шахту и добываешь монеты!' },
+    { text: '⛏️ Нажимай на кабину шахтёра чтобы добывать монеты!\n\nКаждый клик — один цикл добычи.\nМонеты копятся в шахте!' },
+    { text: '🚡 Лифт поднимает монеты наверх!\n\nНажимай на лифт для ручного управления.\nИли купи менеджера (значок +) для автоматизации!' },
+    { text: '🚂 Поезд везёт монеты на склад!\n\nОн стоит у склада справа.\nНажимай на него чтобы отправить рейс!' },
+    { text: '⚗️ В Кузнице можно плавить монеты!\n\n🪙 × 8 → 🥈 × 1\n🥈 × 4 → 🏅 × 1\n\nЖелаю удачи в шахте! ⛏️' }
+];
+
+let tutStep = 0;
+
+function showTutorial() {
+    const overlay = document.getElementById('tutorial-overlay');
+    overlay.classList.remove('hidden');
+    renderTutStep();
+}
+
+function renderTutStep() {
+    const step = TUTORIAL_STEPS[tutStep];
+    const bubble = document.getElementById('tut-bubble');
+    const stepsEl = document.getElementById('tut-steps');
+    const nextBtn = document.getElementById('tut-next-btn');
+    bubble.innerHTML = step.text.replace(/\n/g, '<br>');
+    stepsEl.innerHTML = TUTORIAL_STEPS.map((_, i) =>
+        `<div class="tut-dot ${i === tutStep ? 'active' : ''}"></div>`
+    ).join('');
+    nextBtn.textContent = tutStep >= TUTORIAL_STEPS.length - 1 ? '🎮 Начать!' : 'Далее →';
+}
+
+function tutNext() {
+    tutStep++;
+    if (tutStep >= TUTORIAL_STEPS.length) {
+        document.getElementById('tutorial-overlay').classList.add('hidden');
+        tutStep = 0;
+        return;
     }
+    renderTutStep();
+}
+
+function init() {
+    if (gameState.warehouse && !gameState.warehouse.coins) {
+        gameState.warehouse.coins = { normal:0, silver:0, gold:0 };
+    }
+    if (!gameState.managers.train) gameState.managers.train = false;
+
+    initMinerAnims();
 
     const bar = document.getElementById('load-bar');
     let progress = 0;
@@ -1555,31 +1551,25 @@ function init() {
             updateProfileScreen();
             renderForgeSlots();
 
-            // Admin button
             if (isAdmin()) {
                 const nav = document.getElementById('bottom-nav');
                 const adminBtn = document.createElement('button');
                 adminBtn.className = 'nav-btn';
-                adminBtn.innerHTML = '<span class="nav-icon">🔐</span><span class="nav-label">Адм</span>';
-                adminBtn.onclick = function() {
-                    switchScreen('admin', adminBtn);
-                    playClickSound();
-                };
+                adminBtn.innerHTML = '<span class="nav-icon">🔐</span><span class="nav-label">АДМИН</span>';
+                adminBtn.onclick = function() { switchScreen('admin', adminBtn); playClickSound(); };
                 nav.appendChild(adminBtn);
             }
 
-            // Happy hour badge
             if (isHappyHour()) {
                 document.getElementById('happy-hour-badge').classList.remove('hidden');
             }
 
             requestAnimationFrame(gameTick);
 
-            // Welcome toast
             const isNew = !localStorage.getItem(`gt_v2_visited_${USER.id}`);
             if (isNew) {
                 localStorage.setItem(`gt_v2_visited_${USER.id}`, '1');
-                setTimeout(() => showToast('🎉 Добро пожаловать! Шахта ждёт вас!'), 1200);
+                setTimeout(() => showTutorial(), 800);
             }
         }, 500);
     }, 1800);
