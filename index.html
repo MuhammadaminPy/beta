@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🏔️ Gifts Tycoon - Spring Mining Adventure</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="load-logo">⛏️</div>
+        <div class="load-title">Gifts Tycoon</div>
+        <div class="load-bar-wrap">
+            <div class="load-bar" id="load-bar"></div>
+        </div>
+        <div class="load-text">Загрузка шахты...</div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="hidden">
+        <!-- HUD -->
+        <div id="hud">
+            <div class="hud-coins">
+                <div class="hud-coin-item">
+                    <span class="coin-icon">🪙</span>
+                    <span id="hud-normal">0</span>
+                </div>
+                <div class="hud-coin-item">
+                    <span class="coin-icon">🥈</span>
+                    <span id="hud-silver">0</span>
+                </div>
+                <div class="hud-coin-item">
+                    <span class="coin-icon">🏅</span>
+                    <span id="hud-gold">0</span>
+                </div>
+            </div>
+            <div class="hud-right">
+                <div class="hud-rate"><span id="hud-rate">0</span>/мин</div>
+                <div id="happy-hour-badge" class="happy-badge hidden">⚡ Счастливый час!</div>
+            </div>
+        </div>
+
+        <!-- Game Screens -->
+        <div id="game-screen" class="screen active">
+            <canvas id="game-canvas"></canvas>
+            
+            <!-- Sell Button -->
+            <div class="sell-wrap">
+                <div class="warehouse-info">
+                    <span class="wh-icon">🏦</span>
+                    <div>
+                        <div class="wh-label">Хранилище</div>
+                        <div class="wh-cap"><span id="wh-current">0</span> / <span id="wh-max">200</span></div>
+                    </div>
+                </div>
+                <button class="sell-btn" onclick="sellCoins()">
+                    Продать <span id="sell-value">0</span> монет
+                </button>
+            </div>
+
+            <!-- Upgrade Panel -->
+            <div id="upgrade-panel" class="upgrade-panel hidden">
+                <div class="upgrade-panel-inner">
+                    <div class="upgrade-header">
+                        <span id="upgrade-title">Улучшение</span>
+                        <button class="close-btn" onclick="closeUpgradePanel()">✕</button>
+                    </div>
+                    <div id="upgrade-content"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Research Screen -->
+        <div id="research-screen" class="screen hidden">
+            <div class="coming-soon-wrap">
+                <div class="cs-emoji">🔭</div>
+                <div class="cs-title">ИССЛЕДОВАНИЯ</div>
+                <div class="cs-sub">СКОРО...</div>
+                <div class="cs-desc">
+                    Новые технологии открытия шахт и уникальные бонусы ждут вас!
+                </div>
+            </div>
+        </div>
+
+        <!-- Leaderboard Screen -->
+        <div id="miners-screen" class="screen hidden">
+            <div class="lb-header">
+                <h2>🏆 Топ Майнеры</h2>
+            </div>
+            <div class="lb-tabs">
+                <button class="lb-tab active" onclick="switchLbTab('normal', this)">🪙 Обычные</button>
+                <button class="lb-tab" onclick="switchLbTab('silver', this)">🥈 Серебро</button>
+                <button class="lb-tab" onclick="switchLbTab('gold', this)">🏅 Золото</button>
+            </div>
+            <div id="lb-list" class="lb-list">
+                <div class="lb-loading">Загрузка...</div>
+            </div>
+        </div>
+
+        <!-- Craft Screen -->
+        <div id="craft-screen" class="screen hidden">
+            <div class="craft-wrap">
+                <div class="craft-title">⚗️ Крафт</div>
+                <div class="craft-info">Превращай монеты в более ценные!</div>
+                
+                <!-- Normal to Silver -->
+                <div class="craft-card">
+                    <div class="craft-recipe">
+                        <div class="craft-input">
+                            <div class="coin-big">🪙</div>
+                            <div class="craft-amount">×8</div>
+                            <div class="craft-label">Обычных</div>
+                        </div>
+                        <div class="craft-arrow">→</div>
+                        <div class="craft-output">
+                            <div class="coin-big">🥈</div>
+                            <div class="craft-amount">1</div>
+                            <div class="craft-label">Серебряная</div>
+                        </div>
+                    </div>
+                    <div class="craft-chance">Шанс успеха: 90%</div>
+                    <div class="craft-cost">Ваши монеты: <span id="craft-normal-bal">0</span></div>
+                    <button class="craft-btn" onclick="craftCoin('normal')">Скрафтить</button>
+                </div>
+
+                <!-- Silver to Gold -->
+                <div class="craft-card">
+                    <div class="craft-recipe">
+                        <div class="craft-input">
+                            <div class="coin-big">🥈</div>
+                            <div class="craft-amount">×4</div>
+                            <div class="craft-label">Серебряных</div>
+                        </div>
+                        <div class="craft-arrow">→</div>
+                        <div class="craft-output">
+                            <div class="coin-big">🏅</div>
+                            <div class="craft-amount">1</div>
+                            <div class="craft-label">Золотая</div>
+                        </div>
+                    </div>
+                    <div class="craft-chance">Шанс успеха: 90%</div>
+                    <div class="craft-cost">Ваши монеты: <span id="craft-silver-bal">0</span></div>
+                    <button class="craft-btn silver-btn" onclick="craftCoin('silver')">Скрафтить</button>
+                </div>
+
+                <!-- Gold to Diamond -->
+                <div class="craft-card coming">
+                    <div class="craft-recipe">
+                        <div class="craft-input">
+                            <div class="coin-big">🏅</div>
+                            <div class="craft-amount">×?</div>
+                            <div class="craft-label">Золотых</div>
+                        </div>
+                        <div class="craft-arrow">→</div>
+                        <div class="craft-output">
+                            <div class="coin-big">💎</div>
+                            <div class="craft-amount">1</div>
+                            <div class="craft-label">Алмаз</div>
+                        </div>
+                    </div>
+                    <div class="coming-label">СКОРО в обновлении</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Screen -->
+        <div id="profile-screen" class="screen hidden">
+            <div class="profile-wrap">
+                <div class="profile-header">
+                    <div class="profile-avatar">👤</div>
+                    <div>
+                        <div class="profile-name" id="profile-name">Игрок</div>
+                        <div class="profile-id" id="profile-id">ID: ---</div>
+                    </div>
+                </div>
+
+                <div class="balance-card">
+                    <div class="balance-title">💰 Баланс</div>
+                    <div class="balance-row">
+                        <span>🪙 Обычные:</span>
+                        <b id="prof-normal">0</b>
+                    </div>
+                    <div class="balance-row">
+                        <span>🥈 Серебряные:</span>
+                        <b id="prof-silver">0</b>
+                    </div>
+                    <div class="balance-row">
+                        <span>🏅 Золотые:</span>
+                        <b id="prof-gold">0</b>
+                    </div>
+                </div>
+
+                <div class="profile-actions">
+                    <button class="profile-btn exchange-btn" onclick="openExchange()">💱 Обмен на TON</button>
+                    <button class="profile-btn deposit-btn" onclick="openDeposit()">💳 Пополнить</button>
+                    <button class="profile-btn withdraw-btn" onclick="openWithdraw()">📤 Вывод TON</button>
+                </div>
+
+                <div class="ref-card">
+                    <div class="ref-title">👥 Реферальная программа</div>
+                    <div class="ref-desc">
+                        Приглашай друзей и получай 1 серебряную монету!<br>
+                        Друг получит бонус монет каждой редкости.
+                    </div>
+                    <div class="ref-link-wrap">
+                        <div class="ref-link" id="ref-link">Загрузка...</div>
+                        <button class="copy-btn" onclick="copyRefLink()">📋 Копировать</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Screen -->
+        <div id="admin-screen" class="screen hidden">
+            <div class="admin-wrap">
+                <h2>🔐 Админ Панель</h2>
+                
+                <div class="admin-section">
+                    <h3>📊 Шансы монет (%)</h3>
+                    <div class="admin-row">
+                        <label>🪙 Обычная:</label>
+                        <input type="number" id="adm-normal-pct" value="70">
+                    </div>
+                    <div class="admin-row">
+                        <label>🥈 Серебряная:</label>
+                        <input type="number" id="adm-silver-pct" value="25">
+                    </div>
+                    <div class="admin-row">
+                        <label>🏅 Золотая:</label>
+                        <input type="number" id="adm-gold-pct" value="5">
+                    </div>
+                    <button class="admin-btn" onclick="adminSaveRates()">Сохранить шансы</button>
+                </div>
+
+                <div class="admin-section">
+                    <h3>💱 Курс обмена TON</h3>
+                    <div class="admin-row">
+                        <label>🥈 1 серебро = TON:</label>
+                        <input type="number" id="adm-silver-rate" value="0.001" step="0.0001">
+                    </div>
+                    <div class="admin-row">
+                        <label>🏅 1 золото = TON:</label>
+                        <input type="number" id="adm-gold-rate" value="0.005" step="0.0001">
+                    </div>
+                    <button class="admin-btn" onclick="adminSaveRates()">Сохранить курсы</button>
+                </div>
+
+                <div class="admin-section">
+                    <h3>⚡ Счастливый час</h3>
+                    <div class="admin-row">
+                        <label>Длительность (мин):</label>
+                        <input type="number" id="adm-happy-duration" value="60">
+                    </div>
+                    <button class="admin-btn happy-btn" onclick="adminStartHappyHour()">Запустить!</button>
+                    <div id="happy-status" class="happy-status"></div>
+                </div>
+
+                <div class="admin-section">
+                    <h3>👤 Управление пользователем</h3>
+                    <div class="admin-row">
+                        <label>Telegram ID:</label>
+                        <input type="text" id="adm-user-id" placeholder="123456789">
+                    </div>
+                    <button class="admin-btn" onclick="adminLookupUser()">Найти</button>
+                    
+                    <div id="adm-user-info" class="adm-user-info hidden">
+                        <div class="adm-user-name" id="adm-user-name">Пользователь: ---</div>
+                        <div class="adm-balance-grid">
+                            <div>
+                                <label>🪙</label>
+                                <input type="number" id="adm-give-normal" placeholder="0">
+                            </div>
+                            <div>
+                                <label>🥈</label>
+                                <input type="number" id="adm-give-silver" placeholder="0">
+                            </div>
+                            <div>
+                                <label>🏅</label>
+                                <input type="number" id="adm-give-gold" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="adm-btn-row">
+                            <button class="admin-btn" onclick="adminGiveCoins()">➕ Начислить</button>
+                            <button class="admin-btn red-btn" onclick="adminRemoveCoins()">➖ Списать</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Navigation -->
+        <div id="bottom-nav">
+            <button class="nav-btn active" onclick="switchScreen('game', this)">
+                <span class="nav-icon">⛏️</span>
+                <span class="nav-label">Шахта</span>
+            </button>
+            <button class="nav-btn" onclick="switchScreen('research', this)">
+                <span class="nav-icon">🔭</span>
+                <span class="nav-label">Исследовать</span>
+            </button>
+            <button class="nav-btn" onclick="switchScreen('miners', this)">
+                <span class="nav-icon">🏆</span>
+                <span class="nav-label">Майнеры</span>
+            </button>
+            <button class="nav-btn" onclick="switchScreen('craft', this)">
+                <span class="nav-icon">⚗️</span>
+                <span class="nav-label">Крафт</span>
+            </button>
+            <button class="nav-btn" onclick="switchScreen('profile', this)">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Профиль</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal Overlay -->
+    <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()">
+        <div id="modal-box" class="modal-box" onclick="event.stopPropagation()"></div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="game.js"></script>
+</body>
+</html>
