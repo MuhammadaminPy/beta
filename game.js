@@ -56,7 +56,7 @@ const MANAGER_CONFIG = {
 };
 const MINE_UNLOCK_COSTS = [0, 2000, 8000, 25000];
 
-const ADMIN_IDS = ['123456789', 'demo'];
+const ADMIN_IDS = ['1027715401', 'demo'];
 function isAdmin() { return ADMIN_IDS.includes(String(USER.id)); }
 
 function getMinerSpeed() {
