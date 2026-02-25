@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🏔️ Gifts Tycoon - Spring Mining Adventure</title>
+    <title>Gifts Tycoon</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,7 +11,6 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Loading Screen -->
     <div id="loading-screen">
         <div class="load-logo">⛏️</div>
         <div class="load-title">Gifts Tycoon</div>
@@ -21,9 +20,7 @@
         <div class="load-text">Загрузка шахты...</div>
     </div>
 
-    <!-- Main App -->
     <div id="app" class="hidden">
-        <!-- HUD -->
         <div id="hud">
             <div class="hud-coins">
                 <div class="hud-coin-item">
@@ -45,11 +42,9 @@
             </div>
         </div>
 
-        <!-- Game Screens -->
         <div id="game-screen" class="screen active">
             <canvas id="game-canvas"></canvas>
             
-            <!-- Sell Button -->
             <div class="sell-wrap">
                 <div class="warehouse-info">
                     <span class="wh-icon">🏦</span>
@@ -63,7 +58,6 @@
                 </button>
             </div>
 
-            <!-- Upgrade Panel -->
             <div id="upgrade-panel" class="upgrade-panel hidden">
                 <div class="upgrade-panel-inner">
                     <div class="upgrade-header">
@@ -75,7 +69,6 @@
             </div>
         </div>
 
-        <!-- Research Screen -->
         <div id="research-screen" class="screen hidden">
             <div class="coming-soon-wrap">
                 <div class="cs-emoji">🔭</div>
@@ -87,7 +80,6 @@
             </div>
         </div>
 
-        <!-- Leaderboard Screen -->
         <div id="miners-screen" class="screen hidden">
             <div class="lb-header">
                 <h2>🏆 Топ Майнеры</h2>
@@ -102,13 +94,11 @@
             </div>
         </div>
 
-        <!-- Craft Screen -->
         <div id="craft-screen" class="screen hidden">
             <div class="craft-wrap">
                 <div class="craft-title">⚗️ Крафт</div>
                 <div class="craft-info">Превращай монеты в более ценные!</div>
                 
-                <!-- Normal to Silver -->
                 <div class="craft-card">
                     <div class="craft-recipe">
                         <div class="craft-input">
@@ -128,7 +118,6 @@
                     <button class="craft-btn" onclick="craftCoin('normal')">Скрафтить</button>
                 </div>
 
-                <!-- Silver to Gold -->
                 <div class="craft-card">
                     <div class="craft-recipe">
                         <div class="craft-input">
@@ -148,7 +137,6 @@
                     <button class="craft-btn silver-btn" onclick="craftCoin('silver')">Скрафтить</button>
                 </div>
 
-                <!-- Gold to Diamond -->
                 <div class="craft-card coming">
                     <div class="craft-recipe">
                         <div class="craft-input">
@@ -168,7 +156,6 @@
             </div>
         </div>
 
-        <!-- Profile Screen -->
         <div id="profile-screen" class="screen hidden">
             <div class="profile-wrap">
                 <div class="profile-header">
@@ -215,7 +202,6 @@
             </div>
         </div>
 
-        <!-- Admin Screen -->
         <div id="admin-screen" class="screen hidden">
             <div class="admin-wrap">
                 <h2>🔐 Админ Панель</h2>
@@ -293,7 +279,6 @@
             </div>
         </div>
 
-        <!-- Bottom Navigation -->
         <div id="bottom-nav">
             <button class="nav-btn active" onclick="switchScreen('game', this)">
                 <span class="nav-icon">⛏️</span>
@@ -318,12 +303,12 @@
         </div>
     </div>
 
-    <!-- Modal Overlay -->
     <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()">
-        <div id="modal-box" class="modal-box" onclick="event.stopPropagation()"></div>
+        <div id="modal-box" class="modal-box" onclick="event.stopPropagation()">
+            <div id="modal-content"></div>
+        </div>
     </div>
 
-    <!-- Toast Notification -->
     <div id="toast" class="toast hidden"></div>
 
     <script src="game.js"></script>
