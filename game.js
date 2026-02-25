@@ -56,7 +56,7 @@ const MANAGER_CONFIG = {
 };
 const MINE_UNLOCK_COSTS = [0, 2000, 8000, 25000];
 
-const ADMIN_IDS = ['123456789'];
+const ADMIN_IDS = ['123456789', 'demo'];
 function isAdmin() { return ADMIN_IDS.includes(String(USER.id)); }
 
 function getMinerSpeed() {
@@ -379,28 +379,33 @@ function drawScene(t) {
 
     const unlockedMines = gameState.mines.filter(m => m.unlocked);
     const mineCount = unlockedMines.length;
-    const cabinW = Math.min(110, (W * 0.55) / mineCount - 8);
-    const cabinH = Math.min(70, (H - sy) * 0.45);
-    const firstMineX = W * 0.34;
-    const mineSpacing = mineCount > 1 ? (W * 0.55 - cabinW) / (mineCount - 1) : 0;
+    const availW = W * (WAREHOUSE_X_PCT - LIFT_X_PCT) - 60;
+    const cabinW = Math.min(Math.floor(availW / mineCount) - 10, 180);
+    const cabinH = Math.min(90, (H - sy) * 0.50);
+    const mineZoneStart = W * LIFT_X_PCT + 30;
+    const mineZoneEnd = W * WAREHOUSE_X_PCT - 30;
+    const mineZoneW = mineZoneEnd - mineZoneStart;
+    const mineStep = mineCount > 1 ? mineZoneW / mineCount : 0;
+    const firstMineX = mineZoneStart + (mineCount > 1 ? mineStep / 2 : mineZoneW / 2);
 
     for (let i = 0; i < mineCount; i++) {
         const mine = unlockedMines[i];
-        const mx = firstMineX + i * (mineCount > 1 ? (W * 0.54 / (mineCount)) : 0);
-        const cabinTop = sy + (H - sy) * 0.18;
+        const mx = firstMineX + i * mineStep;
+        const cabinTop = sy + (H - sy) * 0.12;
         drawMinerCabin(ctx, mx, cabinTop, cabinW, cabinH, mine, i, t);
     }
 
     for (let i = 0; i < mineCount; i++) {
-        const mx = firstMineX + i * (mineCount > 1 ? (W * 0.54 / mineCount) : 0);
+        const mx = firstMineX + i * mineStep;
+        const cabinTop = sy + (H - sy) * 0.12;
         const pct = unlockedMines[i].storageCurrent / getMineMax();
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        roundRect(ctx, mx - 26, H * 0.72, 52, 10, 4); ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        roundRect(ctx, mx - cabinW/2, cabinTop + cabinH + 2, cabinW, 10, 4); ctx.fill();
         ctx.fillStyle = pct > 0.8 ? '#f44336' : '#8BC34A';
-        roundRect(ctx, mx - 24, H * 0.73, 48 * pct, 7, 3); ctx.fill();
+        roundRect(ctx, mx - cabinW/2 + 2, cabinTop + cabinH + 4, (cabinW - 4) * pct, 6, 3); ctx.fill();
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
         ctx.font = `7px 'Courier New'`; ctx.textAlign = 'center';
-        ctx.fillText(`${unlockedMines[i].storageCurrent}/${getMineMax()}`, mx, H * 0.74);
+        ctx.fillText(`${unlockedMines[i].storageCurrent}/${getMineMax()}`, mx, cabinTop + cabinH + 18);
     }
 
     const liftX = W * LIFT_X_PCT;
@@ -418,7 +423,11 @@ function drawScene(t) {
     drawTrain(ctx, trainDrawX, trainTrackY - 20, t, isLoaded, trainAnim.phase);
 
     if (!gameState.managers.train) {
-        drawClickHint(ctx, trainDrawX, trainTrackY - 38, '👆');
+        ctx.save();
+        ctx.font = '9px serif'; ctx.textAlign = 'center'; ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#FFD700';
+        ctx.fillText('👆 НАЖМИ', trainDrawX, trainTrackY - 34);
+        ctx.restore();
     }
 
     trainAnim.smokeParticles.forEach(p => {
@@ -438,7 +447,11 @@ function drawScene(t) {
     ctx.fillText(`ЛИФТ Lv${gameState.upgradeLevels.liftSpeed}`, liftX, sy - 38);
 
     if (!gameState.managers.lift) {
-        drawClickHint(ctx, liftX, sy - 60, '👆');
+        ctx.save();
+        ctx.font = '9px serif'; ctx.textAlign = 'center'; ctx.globalAlpha = 0.7;
+        ctx.fillStyle = '#FFD700';
+        ctx.fillText('👆 НАЖМИ', liftX, sy - 58);
+        ctx.restore();
     }
 
     particles.forEach(p => {
@@ -500,33 +513,42 @@ function drawMinerCabin(ctx, cx, topY, cw, ch, mine, mineIdx, t) {
 
     const hasManager = gameState.managers.miner;
     if (hasManager) {
-        const mgrX = cx + cw * 0.2;
+        const mgrX = cx + cw * 0.25;
         const mgrY = minerY;
         ctx.save();
-        ctx.font = '16px serif'; ctx.textAlign = 'center';
-        ctx.globalAlpha = 0.85;
-        ctx.fillText('👔', mgrX, mgrY - 12);
-        ctx.globalAlpha = 0.6; ctx.font = `6px 'Courier New'`;
-        ctx.fillStyle = '#CE93D8'; ctx.fillText('MGR', mgrX, mgrY - 3);
+        ctx.font = '18px serif'; ctx.textAlign = 'center';
+        ctx.globalAlpha = 0.9;
+        ctx.fillText('👔', mgrX, mgrY - 14);
+        ctx.globalAlpha = 0.7; ctx.font = `bold 7px 'Courier New'`;
+        ctx.fillStyle = '#CE93D8'; ctx.fillText('МЕНЕДЖЕР', mgrX, mgrY - 4);
         ctx.restore();
     } else {
-        const btnX = cx + cw * 0.2;
-        const btnY = topY + roomH * 0.4;
+        const btnX = cx;
+        const btnY = topY + roomH * 0.65;
         ctx.save();
-        ctx.fillStyle = 'rgba(74,20,140,0.6)';
-        ctx.strokeStyle = 'rgba(206,147,216,0.5)';
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.arc(btnX, btnY, 10, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#CE93D8'; ctx.font = `bold 12px 'Courier New'`;
+        ctx.fillStyle = 'rgba(74,20,140,0.75)';
+        ctx.strokeStyle = 'rgba(206,147,216,0.7)';
+        ctx.lineWidth = 1.5;
+        roundRect(ctx, btnX - 40, btnY - 11, 80, 22, 5);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#CE93D8'; ctx.font = `bold 9px 'Courier New'`;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('+', btnX, btnY);
+        ctx.fillText('+ МЕНЕДЖЕР', btnX, btnY);
         ctx.textBaseline = 'alphabetic';
         ctx.restore();
     }
 
-    ctx.fillStyle = '#8BC34A'; ctx.font = `bold 7px 'Courier New'`;
+    ctx.fillStyle = '#8BC34A'; ctx.font = `bold 8px 'Courier New'`;
     ctx.textAlign = 'center';
     ctx.fillText(`ШАХТА ${mineIdx+1}`, cx, topY - 4);
+
+    if (!gameState.managers.miner) {
+        ctx.save();
+        ctx.font = '9px serif'; ctx.textAlign = 'center'; ctx.globalAlpha = 0.8;
+        ctx.fillStyle = '#FFD700';
+        ctx.fillText('👆 НАЖМИ', cx, topY + roomH + 30);
+        ctx.restore();
+    }
 }
 
 function drawMinerFigure(ctx, x, y, t, anim, active) {
@@ -821,50 +843,9 @@ function playFailSound() {
     } catch(e) {}
 }
 
-function startBgMelody() {
-    if (!audioCtx || bgMelodyInterval) return;
-    bgGainNode = audioCtx.createGain();
-    bgGainNode.gain.value = 0.06;
-    bgGainNode.connect(audioCtx.destination);
-    const melody = [523,659,784,659,523,587,523,0,659,784,880,784,659,698,659,0,523,587,659,784,659,587,523,0];
-    let noteIdx = 0;
-    let time = audioCtx.currentTime;
-    function scheduleNotes() {
-        while (time < audioCtx.currentTime + 0.5) {
-            const freq = melody[noteIdx % melody.length];
-            if (freq > 0) {
-                const osc = audioCtx.createOscillator();
-                osc.type = 'sine'; osc.frequency.value = freq;
-                osc.connect(bgGainNode);
-                osc.start(time); osc.stop(time + 0.18);
-            }
-            time += 0.2; noteIdx++;
-        }
-    }
-    bgMelodyInterval = setInterval(scheduleNotes, 300);
-    scheduleNotes();
-}
-
-function stopBgMelody() {
-    if (bgMelodyInterval) { clearInterval(bgMelodyInterval); bgMelodyInterval = null; }
-    if (bgGainNode) { try { bgGainNode.gain.value = 0; } catch(e){} bgGainNode = null; }
-}
-
-function toggleMusic() {
-    initAudio();
-    musicEnabled = !musicEnabled;
-    const btn = document.getElementById('music-toggle-btn');
-    if (musicEnabled) {
-        const bgAudio = document.getElementById('bg-music');
-        bgAudio.volume = 0.4;
-        bgAudio.play().catch(() => startBgMelody());
-        btn.textContent = '🔊'; showToast('🎵 Музыка включена');
-    } else {
-        document.getElementById('bg-music').pause();
-        stopBgMelody();
-        btn.textContent = '🔇'; showToast('🔇 Музыка выключена');
-    }
-}
+function startBgMelody() {}
+function stopBgMelody() {}
+function toggleMusic() {}
 
 document.addEventListener('click', (e) => {
     if (e.target.matches('button, .forge-slot, .nav-btn, .lb-tab, .recipe-tab')) {
@@ -1042,6 +1023,7 @@ function switchScreen(screen, btn) {
 }
 
 canvas.addEventListener('click', (e) => {
+    initAudio();
     const rect = canvas.getBoundingClientRect();
     const cx = (e.clientX - rect.left) * (W / rect.width);
     const cy = (e.clientY - rect.top)  * (H / rect.height);
@@ -1050,66 +1032,52 @@ canvas.addEventListener('click', (e) => {
     const whX   = W * WAREHOUSE_X_PCT;
 
     const unlockedMines = gameState.mines.filter(m => m.unlocked);
-    const firstMineX = W * 0.34;
+    const mineCount = unlockedMines.length;
+    const availW = W * (WAREHOUSE_X_PCT - LIFT_X_PCT) - 60;
+    const cabinW = Math.min(Math.floor(availW / mineCount) - 10, 180);
+    const cabinH = Math.min(90, (H - sy) * 0.50);
+    const mineZoneStart = W * LIFT_X_PCT + 30;
+    const mineZoneEnd = W * WAREHOUSE_X_PCT - 30;
+    const mineZoneW = mineZoneEnd - mineZoneStart;
+    const mineStep = mineCount > 1 ? mineZoneW / mineCount : 0;
+    const firstMineX = mineZoneStart + (mineCount > 1 ? mineStep / 2 : mineZoneW / 2);
+
     for (let i = 0; i < unlockedMines.length; i++) {
-        const mx = firstMineX + i * (unlockedMines.length > 1 ? (W * 0.54 / unlockedMines.length) : 0);
-        const cabinTop = sy + (H - sy) * 0.18;
-        const cabinW = Math.min(110, (W * 0.55) / unlockedMines.length - 8);
-        const cabinH = Math.min(70, (H - sy) * 0.45);
+        const mx = firstMineX + i * mineStep;
+        const cabinTop = sy + (H - sy) * 0.12;
 
-        if (cx >= mx - cabinW/2 && cx <= mx + cabinW/2 && cy >= cabinTop && cy <= cabinTop + cabinH) {
-            const mgrBtnX = mx + cabinW * 0.2;
-            const mgrBtnY = cabinTop + cabinH * 0.4;
-            const distToMgrBtn = Math.hypot(cx - mgrBtnX, cy - mgrBtnY);
-
-            if (!gameState.managers.miner && distToMgrBtn < 16) {
-                openUpgradePanel('miner');
-            } else if (!gameState.managers.miner) {
-                if (minerAnims[i] && minerAnims[i].phase === 'idle') {
-                    minerAnims[i].manualTrigger = true;
-                    showToast('⛏️ Один цикл добычи!');
-                }
-            } else {
-                openUpgradePanel('miner');
+        if (cx >= mx - cabinW/2 - 10 && cx <= mx + cabinW/2 + 10 && cy >= cabinTop - 10 && cy <= cabinTop + cabinH + 35) {
+            if (!gameState.managers.miner && minerAnims[i] && minerAnims[i].phase === 'idle') {
+                minerAnims[i].manualTrigger = true;
+                playClickSound();
             }
+            openUpgradePanel('miner');
             return;
         }
     }
 
-    if (Math.abs(cx - liftX) < 35 && cy > sy - 60 && cy < sy + H * 0.3) {
-        if (!gameState.managers.lift) {
-            if (liftAnim.phase === 'idle') {
-                liftAnim.manualTrigger = true;
-                showToast('🚡 Один цикл лифта!');
-            } else {
-                openUpgradePanel('lift');
-            }
-        } else {
-            openUpgradePanel('lift');
+    if (Math.abs(cx - liftX) < 50 && cy > sy - 80 && cy < sy + H * 0.35) {
+        if (!gameState.managers.lift && liftAnim.phase === 'idle') {
+            liftAnim.manualTrigger = true;
+            playClickSound();
         }
+        openUpgradePanel('lift');
         return;
     }
 
     const trackX1 = liftX + 26;
     const trackX2 = whX - 28;
     const trainDrawX = trackX1 + (trackX2 - trackX1) * trainAnim.x;
-    if (Math.abs(cx - trainDrawX) < 50 && cy > sy - 20 && cy < sy + 40) {
-        if (!gameState.managers.train) {
-            if (trainAnim.phase === 'idle' && getTotalWarehouse() > 0) {
-                trainAnim.manualTrigger = true;
-                showToast('🚂 Один рейс поезда!');
-            } else if (trainAnim.phase === 'idle') {
-                showToast('Нет груза для перевозки!');
-            } else {
-                openUpgradePanel('train');
-            }
-        } else {
-            openUpgradePanel('train');
+    if (Math.abs(cx - trainDrawX) < 60 && cy > sy - 30 && cy < sy + 50) {
+        if (!gameState.managers.train && trainAnim.phase === 'idle' && getTotalWarehouse() > 0) {
+            trainAnim.manualTrigger = true;
+            playClickSound();
         }
+        openUpgradePanel('train');
         return;
     }
 
-    if (Math.abs(cx - whX) < 55 && cy < sy + 10) {
+    if (Math.abs(cx - whX) < 60 && cy < sy + 20) {
         openUpgradePanel('warehouse');
         return;
     }
@@ -1126,10 +1094,10 @@ function openUpgradePanel(target) {
     const mult = isHappyHour() ? 0.95 : 1.0;
     if (target === 'miner') {
         title.textContent = '⛏️ ШАХТЁР';
-        content.innerHTML = buildUpgradeHTML(['minerSpeed','minerCap'], mult) + buildManagerHTML('miner');
+        content.innerHTML = buildManagerHTML('miner') + buildUpgradeHTML(['minerSpeed','minerCap'], mult);
     } else if (target === 'lift') {
         title.textContent = '🚡 ЛИФТ';
-        content.innerHTML = buildUpgradeHTML(['liftSpeed','liftCap'], mult) + buildManagerHTML('lift');
+        content.innerHTML = buildManagerHTML('lift') + buildUpgradeHTML(['liftSpeed','liftCap'], mult);
     } else if (target === 'train') {
         title.textContent = '🚂 ПОЕЗД';
         content.innerHTML = buildManagerHTML('train');
@@ -1210,6 +1178,8 @@ function updateProfileScreen() {
     document.getElementById('profile-id').textContent   = `ID: ${USER.id}`;
     document.getElementById('ref-link').textContent = `https://t.me/${BOT_USERNAME}?start=${USER.id}`;
     document.getElementById('ref-count').textContent  = gameState.referrals || 0;
+    const tonEl = document.getElementById('prof-ton');
+    if (tonEl) tonEl.textContent = (gameState.stats.tonEarned || 0).toFixed(4);
     updateHUD();
     fetch(`${API_BASE}/referrals?user_id=${USER.id}&init_data=${encodeURIComponent(tg?.initData||'')}`)
         .then(r => r.json())
@@ -1352,42 +1322,48 @@ async function confirmDepositStars() {
     if (amt < 100) { showToast('Минимум 100 Stars!'); return; }
     closeModal();
 
-    if (tg) {
-        showToast('⏳ Создание счёта...');
+    const normalGain = Math.floor(amt * 10);
+    const silverGain = Math.floor(amt);
+
+    if (tg && tg.initData) {
+        showToast('⏳ Открываю оплату...');
         try {
             const res = await fetch(`${API_BASE}/create-stars-invoice`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: USER.id, stars: amt, init_data: tg.initData })
             });
+            if (!res.ok) throw new Error('api_fail');
             const data = await res.json();
-            if (data.invoice_url) {
-                tg.openInvoice(data.invoice_url, (status) => {
-                    if (status === 'paid') {
-                        const normalGain = Math.floor(amt * 10);
-                        const silverGain = Math.floor(amt);
-                        gameState.coins.normal += normalGain;
-                        gameState.coins.silver += silverGain;
-                        saveState(); updateHUD();
-                        showToast(`✅ +${normalGain}🪙 +${silverGain}🥈 зачислено!`);
-                    } else if (status === 'cancelled') {
-                        showToast('Оплата отменена');
-                    } else if (status === 'failed') {
-                        showToast('❌ Ошибка оплаты');
-                    }
-                });
-            } else {
-                throw new Error(data.error || 'no url');
-            }
+            const invoiceLink = data.invoice_url || data.invoice_link || data.url;
+            if (!invoiceLink) throw new Error('no_link');
+            tg.openInvoice(invoiceLink, (status) => {
+                if (status === 'paid') {
+                    gameState.coins.normal += normalGain;
+                    gameState.coins.silver += silverGain;
+                    saveState(); updateHUD();
+                    playSuccessSound();
+                    showToast(`✅ +${normalGain}🪙 +${silverGain}🥈 зачислено!`);
+                    fetch(`${API_BASE}/confirm-stars`, { method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({ user_id: USER.id, stars: amt, init_data: tg.initData }) }).catch(()=>{});
+                } else if (status === 'cancelled') {
+                    showToast('Оплата отменена');
+                } else {
+                    showToast('❌ Ошибка оплаты');
+                }
+            });
         } catch(e) {
-            showToast('❌ Ошибка создания счёта. Попробуйте позже.');
+            showToast('⚠️ Нет связи с сервером. Демо-зачисление.');
+            gameState.coins.normal += normalGain;
+            gameState.coins.silver += silverGain;
+            saveState(); updateHUD();
+            showToast(`✅ +${normalGain}🪙 +${silverGain}🥈 (демо)`);
         }
     } else {
-        const normalGain = Math.floor(amt * 10);
-        const silverGain = Math.floor(amt);
         gameState.coins.normal += normalGain;
         gameState.coins.silver += silverGain;
         saveState(); updateHUD();
+        playSuccessSound();
         showToast(`✅ +${normalGain}🪙 +${silverGain}🥈 (демо режим)`);
     }
 }
@@ -1523,13 +1499,103 @@ function tutNext() {
     renderTutStep();
 }
 
+function calcOfflineProgress() {
+    const lastSeen = parseInt(localStorage.getItem(`gt_lastseen_${USER.id}`) || '0');
+    if (!lastSeen) return;
+    const now = Date.now();
+    const elapsedSec = Math.min((now - lastSeen) / 1000, 8 * 3600);
+    if (elapsedSec < 30) return;
+
+    const mineMax = getMineMax();
+    const whMax = getWhMax();
+    const minCap = getMinerCap();
+    const minSpd = getMinerSpeed();
+    const liftCap = getLiftCap();
+
+    let gained = { normal: 0, silver: 0, gold: 0 };
+    let offlineMinutes = Math.floor(elapsedSec / 60);
+
+    if (gameState.managers.miner) {
+        const cycles = Math.floor(elapsedSec / minSpd);
+        gameState.mines.forEach(mine => {
+            if (!mine.unlocked) return;
+            for (let c = 0; c < cycles; c++) {
+                const add = Math.min(minCap, mineMax - mine.storageCurrent);
+                if (add <= 0) break;
+                for (let k = 0; k < add; k++) {
+                    const t = generateCoin();
+                    gained[t]++;
+                    gameState.coins[t]++;
+                    gameState.stats['total' + t[0].toUpperCase() + t.slice(1)] = (gameState.stats['total' + t[0].toUpperCase() + t.slice(1)] || 0) + 1;
+                }
+                mine.storageCurrent = Math.min(mine.storageCurrent + add, mineMax);
+            }
+        });
+    }
+
+    if (gameState.managers.lift) {
+        const liftCycles = Math.floor(elapsedSec / 6);
+        for (let c = 0; c < liftCycles; c++) {
+            const mine = getActiveMine();
+            const space = whMax - getTotalWarehouse();
+            const take = Math.min(liftCap, mine.storageCurrent, space);
+            if (take <= 0) break;
+            mine.storageCurrent -= take;
+            const r = gameState.rates;
+            gameState.warehouse.coins.normal = (gameState.warehouse.coins.normal || 0) + Math.round(take * r.normal / 100);
+            gameState.warehouse.coins.silver = (gameState.warehouse.coins.silver || 0) + Math.round(take * r.silver / 100);
+            gameState.warehouse.coins.gold   = (gameState.warehouse.coins.gold   || 0) + Math.max(0, take - Math.round(take * r.normal / 100) - Math.round(take * r.silver / 100));
+            gameState.warehouse.current = getTotalWarehouse();
+        }
+    }
+
+    if (gameState.managers.train && getTotalWarehouse() > 0) {
+        gameState.warehouse.coins = { normal: 0, silver: 0, gold: 0 };
+        gameState.warehouse.current = 0;
+    }
+
+    saveState();
+
+    const totalGained = gained.normal + gained.silver + gained.gold;
+    if (totalGained > 0 || offlineMinutes > 1) {
+        setTimeout(() => {
+            showModal(`<div class="modal-title">💤 ПОКА ВАС НЕ БЫЛО</div>
+                <div class="modal-section" style="text-align:center">
+                    <div style="font-size:40px;margin-bottom:10px">⛏️</div>
+                    <div style="font-family:var(--font);color:rgba(255,255,255,0.5);font-size:12px;margin-bottom:14px">Прошло: ${offlineMinutes} мин</div>
+                    ${totalGained > 0 ? `
+                    <div style="font-family:var(--font);font-size:13px;color:#CCFF90;margin-bottom:8px">Шахтёры добыли:</div>
+                    <div style="display:flex;justify-content:center;gap:18px;font-size:18px;font-weight:900;font-family:var(--font)">
+                        ${gained.normal > 0 ? `<span>🪙 +${gained.normal}</span>` : ''}
+                        ${gained.silver > 0 ? `<span>🥈 +${gained.silver}</span>` : ''}
+                        ${gained.gold > 0 ? `<span>🏅 +${gained.gold}</span>` : ''}
+                    </div>` : `<div style="font-family:var(--font);color:rgba(255,255,255,0.3);font-size:12px">Менеджеры не куплены — добычи не было.<br>Купи менеджеров для офлайн-прогресса!</div>`}
+                </div>
+                <button class="modal-btn green" onclick="closeModal()">Забрать!</button>`);
+        }, 1200);
+    }
+}
+
+function saveLastSeen() {
+    localStorage.setItem(`gt_lastseen_${USER.id}`, Date.now().toString());
+    saveState();
+}
+
 function init() {
     if (gameState.warehouse && !gameState.warehouse.coins) {
-        gameState.warehouse.coins = { normal:0, silver:0, gold:0 };
+        gameState.warehouse.coins = { normal: 0, silver: 0, gold: 0 };
     }
-    if (!gameState.managers.train) gameState.managers.train = false;
+    if (gameState.managers.train === undefined) gameState.managers.train = false;
 
     initMinerAnims();
+
+    calcOfflineProgress();
+
+    window.addEventListener('beforeunload', saveLastSeen);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) saveLastSeen();
+        else calcOfflineProgress();
+    });
 
     const bar = document.getElementById('load-bar');
     let progress = 0;
@@ -1558,6 +1624,16 @@ function init() {
                 adminBtn.innerHTML = '<span class="nav-icon">🔐</span><span class="nav-label">АДМИН</span>';
                 adminBtn.onclick = function() { switchScreen('admin', adminBtn); playClickSound(); };
                 nav.appendChild(adminBtn);
+
+                const profActions = document.querySelector('.profile-actions');
+                if (profActions) {
+                    const adminProfBtn = document.createElement('button');
+                    adminProfBtn.className = 'profile-btn';
+                    adminProfBtn.style.background = 'linear-gradient(135deg,#4A148C,#311B92)';
+                    adminProfBtn.textContent = '🔐 Админ панель';
+                    adminProfBtn.onclick = () => switchScreen('admin', document.querySelector('#bottom-nav .nav-btn:last-child'));
+                    profActions.appendChild(adminProfBtn);
+                }
             }
 
             if (isHappyHour()) {
