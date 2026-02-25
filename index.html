@@ -16,44 +16,26 @@
     </div>
 
     <div id="app" class="hidden">
-        <!-- HUD -->
         <div id="hud">
             <div class="hud-coins">
                 <div class="hud-coin-item"><span class="coin-icon">🪙</span><span id="hud-normal">0</span></div>
                 <div class="hud-coin-item"><span class="coin-icon">🥈</span><span id="hud-silver">0</span></div>
                 <div class="hud-coin-item"><span class="coin-icon">🏅</span><span id="hud-gold">0</span></div>
             </div>
+            <div class="hud-storage">
+                <div class="hud-storage-label">СКЛАД <span id="hud-cur">0</span>/<span id="hud-max">200</span></div>
+                <div class="hud-storage-track"><div class="hud-storage-fill" id="hud-sfill"></div></div>
+            </div>
             <div class="hud-right">
-                <div class="hud-rate"><span id="hud-rate">0</span>/мин</div>
-                <div id="happy-hour-badge" class="happy-badge hidden">⚡ HAPPY HOUR!</div>
-                <button class="hud-music-btn" id="music-toggle-btn" onclick="toggleMusic()" title="Музыка">🎵</button>
+                <div id="happy-hour-badge" class="happy-badge hidden">⚡</div>
+                <button class="hud-music-btn" id="music-toggle-btn" onclick="toggleMusic()">🎵</button>
             </div>
         </div>
 
-        <!-- GAME SCREEN -->
         <div id="game-screen" class="screen active">
             <canvas id="game-canvas"></canvas>
-
-            <!-- Mine unlock slots (top right) -->
             <div class="mine-unlock-bar" id="mine-unlock-bar"></div>
 
-            <!-- Warehouse bar (no sell button) -->
-            <div class="warehouse-bar">
-                <div class="wh-coins">
-                    <div class="wh-coin">🪙 <span id="wh-normal">0</span></div>
-                    <div class="wh-coin">🥈 <span id="wh-silver">0</span></div>
-                    <div class="wh-coin">🏅 <span id="wh-gold">0</span></div>
-                </div>
-                <div class="wh-info">
-                    <div class="wh-cap-txt">ХРАНИЛИЩЕ</div>
-                    <div class="wh-cap-row">
-                        <div class="wh-cap-bar"><div class="wh-cap-fill" id="wh-fill" style="width:0%"></div></div>
-                        <div class="wh-cap-label"><span id="wh-current">0</span>/<span id="wh-max">200</span></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Upgrade panel -->
             <div id="upgrade-panel" class="upgrade-panel hidden">
                 <div class="upgrade-panel-inner">
                     <div class="upgrade-header">
@@ -65,7 +47,6 @@
             </div>
         </div>
 
-        <!-- RESEARCH SCREEN -->
         <div id="research-screen" class="screen hidden">
             <div class="coming-soon-wrap">
                 <div class="cs-emoji">🔭</div>
@@ -75,7 +56,6 @@
             </div>
         </div>
 
-        <!-- LEADERBOARD SCREEN -->
         <div id="miners-screen" class="screen hidden">
             <div class="lb-header"><h2>🏆 ТОП МАЙНЕРЫ</h2></div>
             <div class="lb-tabs">
@@ -86,47 +66,25 @@
             <div id="lb-list" class="lb-list"><div class="lb-loading">ЗАГРУЗКА...</div></div>
         </div>
 
-        <!-- CRAFT / FORGE SCREEN -->
         <div id="craft-screen" class="screen hidden">
             <div class="craft-wrap">
                 <div class="craft-title">⚗️ КУЗНИЦА</div>
                 <div class="craft-info">Выберите рецепт и добавьте материалы</div>
-
-                <!-- Recipe selector -->
                 <div class="recipe-tabs">
                     <button class="recipe-tab active" onclick="selectRecipe('normal',this)">🪙 → 🥈<br><span style="font-size:9px;opacity:0.6">8 обычных → 1 серебро</span></button>
                     <button class="recipe-tab" onclick="selectRecipe('silver',this)">🥈 → 🏅<br><span style="font-size:9px;opacity:0.6">4 серебра → 1 золото</span></button>
                 </div>
-
-                <!-- Forge grid -->
                 <div class="forge-container">
                     <div class="forge-grid" id="forge-grid">
-                        <!-- slot-0 (top-left) -->
-                        <div class="forge-slot" id="slot-0" onclick="toggleSlot(0)">
-                            <span class="plus-icon">+</span>
-                        </div>
-                        <!-- top-center empty -->
+                        <div class="forge-slot" id="slot-0" onclick="toggleSlot(0)"><span class="plus-icon">+</span></div>
                         <div class="forge-slot empty-cell"></div>
-                        <!-- slot-1 (top-right) -->
-                        <div class="forge-slot" id="slot-1" onclick="toggleSlot(1)">
-                            <span class="plus-icon">+</span>
-                        </div>
-                        <!-- mid-left empty -->
+                        <div class="forge-slot" id="slot-1" onclick="toggleSlot(1)"><span class="plus-icon">+</span></div>
                         <div class="forge-slot empty-cell"></div>
-                        <!-- center result -->
                         <div class="forge-result-cell" id="forge-result">?</div>
-                        <!-- mid-right empty -->
                         <div class="forge-slot empty-cell"></div>
-                        <!-- slot-2 (bottom-left) -->
-                        <div class="forge-slot" id="slot-2" onclick="toggleSlot(2)">
-                            <span class="plus-icon">+</span>
-                        </div>
-                        <!-- bottom-center empty -->
+                        <div class="forge-slot" id="slot-2" onclick="toggleSlot(2)"><span class="plus-icon">+</span></div>
                         <div class="forge-slot empty-cell"></div>
-                        <!-- slot-3 (bottom-right) -->
-                        <div class="forge-slot" id="slot-3" onclick="toggleSlot(3)">
-                            <span class="plus-icon">+</span>
-                        </div>
+                        <div class="forge-slot" id="slot-3" onclick="toggleSlot(3)"><span class="plus-icon">+</span></div>
                     </div>
                     <div class="forge-hint" id="forge-hint">Нажмите + чтобы добавить материалы (2–4 слота)</div>
                     <div class="forge-stats">
@@ -135,8 +93,6 @@
                     </div>
                     <button class="forge-btn" id="forge-btn" onclick="doForge()" disabled>СОЗДАТЬ</button>
                 </div>
-
-                <!-- Coming soon recipe -->
                 <div class="craft-coming">
                     <div class="craft-coming-icon">💎</div>
                     <div class="craft-coming-text">🏅 → 💎 Скоро в обновлении</div>
@@ -144,7 +100,6 @@
             </div>
         </div>
 
-        <!-- PROFILE SCREEN -->
         <div id="profile-screen" class="screen hidden">
             <div class="profile-wrap">
                 <div class="profile-header">
@@ -154,38 +109,29 @@
                         <div class="profile-id" id="profile-id">ID: ---</div>
                     </div>
                 </div>
-
                 <div class="balance-card">
                     <div class="balance-title">💰 БАЛАНС</div>
                     <div class="balance-row"><span>🪙 Обычные:</span><b id="prof-normal">0</b></div>
                     <div class="balance-row"><span>🥈 Серебряные:</span><b id="prof-silver">0</b></div>
                     <div class="balance-row"><span>🏅 Золотые:</span><b id="prof-gold">0</b></div>
                 </div>
-
                 <div class="profile-actions">
                     <button class="profile-btn exchange-btn" onclick="openExchange()">💱 Обмен на TON</button>
                     <button class="profile-btn deposit-btn" onclick="openDeposit()">⭐ Пополнить Stars</button>
                     <button class="profile-btn withdraw-btn" onclick="openWithdraw()">📤 Вывод TON</button>
                 </div>
-
                 <div class="ref-card">
                     <div class="ref-title">👥 РЕФЕРАЛЬНАЯ ПРОГРАММА</div>
-                    <div class="ref-desc">
-                        Приглашай друзей — получай 🥈×1 за каждого!<br>
-                        Друг получит стартовый бонус монет.
-                    </div>
+                    <div class="ref-desc">Приглашай друзей — получай 🥈×1 за каждого!<br>Друг получит стартовый бонус монет.</div>
                     <div class="ref-link-wrap">
                         <div class="ref-link" id="ref-link">Загрузка...</div>
                         <button class="copy-btn" onclick="copyRefLink()">📋 Копировать</button>
                     </div>
-                    <div class="ref-stats">
-                        Рефералов: <span class="ref-stats-num" id="ref-count">0</span>
-                    </div>
+                    <div class="ref-stats">Рефералов: <span class="ref-stats-num" id="ref-count">0</span></div>
                 </div>
             </div>
         </div>
 
-        <!-- ADMIN SCREEN -->
         <div id="admin-screen" class="screen hidden">
             <div class="admin-wrap">
                 <h2>🔐 АДМИН ПАНЕЛЬ</h2>
@@ -228,7 +174,6 @@
             </div>
         </div>
 
-        <!-- BOTTOM NAV -->
         <div id="bottom-nav">
             <button class="nav-btn active" onclick="switchScreen('game',this)">
                 <span class="nav-icon">⛏️</span><span class="nav-label">Шахта</span>
@@ -248,17 +193,23 @@
         </div>
     </div>
 
-    <!-- MODAL -->
     <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()">
         <div id="modal-box" class="modal-box" onclick="event.stopPropagation()">
             <div id="modal-content"></div>
         </div>
     </div>
 
-    <!-- TOAST -->
     <div id="toast" class="toast hidden"></div>
 
-    <!-- Audio -->
+    <div id="tutorial-overlay" class="tutorial-overlay hidden">
+        <div class="tutorial-box">
+            <div class="tut-miner">⛏️</div>
+            <div class="tut-bubble" id="tut-bubble"></div>
+            <div class="tut-steps" id="tut-steps"></div>
+            <button class="tut-next-btn" id="tut-next-btn" onclick="tutNext()">Далее →</button>
+        </div>
+    </div>
+
     <audio id="bg-music" loop preload="none">
         <source src="/audio/carefree.mp3" type="audio/mpeg">
     </audio>
