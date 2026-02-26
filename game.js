@@ -7,7 +7,10 @@ const USER = {
     username: tg?.initDataUnsafe?.user?.username || ''
 };
 const BOT_USERNAME = 'GiftsTycoonBot';
-const API_BASE = '/api';
+// API_BASE: читается из <meta name="api-base"> или window.API_BASE, иначе '/api'
+const API_BASE = (document.querySelector('meta[name="api-base"]')?.content)
+    || window.API_BASE
+    || '/api';
 
 const MAX_MINES = 10;
 
@@ -2208,6 +2211,15 @@ function buildAdminEconomySection() {
         mineCostRows += `<div class="admin-row"><label>Шахта ${i+1}:</label><input type="number" id="adm-mine-cost-${i}" value="${cur}"></div>`;
     }
     return `
+    <div class="admin-section">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+            📊 Статистика сервера
+            <button class="admin-btn" style="padding:4px 10px;font-size:10px;margin:0" onclick="adminLoadStats()">🔄</button>
+        </h3>
+        <div id="adm-global-stats" style="margin-top:8px">
+            <div style="color:rgba(255,255,255,0.2);font-size:10px;font-family:var(--font)">Нажми 🔄 для загрузки</div>
+        </div>
+    </div>
     <div class="admin-section">
         <h3>👥 Награда за реферала</h3>
         <div class="admin-row"><label>Тип монеты:</label>
