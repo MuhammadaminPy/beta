@@ -15,6 +15,7 @@ load_dotenv()
 BOT_TOKEN   = os.getenv('BOT_TOKEN', 'YOUR_BOT_TOKEN')
 WEBAPP_URL  = os.getenv('WEBAPP_URL', 'https://your-domain.com')
 ADMIN_IDS   = list(map(int, os.getenv('ADMIN_IDS', '').split(','))) if os.getenv('ADMIN_IDS') else []
+PORT = 8000
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
