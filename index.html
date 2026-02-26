@@ -22,18 +22,19 @@
                 <div class="hud-coin-item"><span class="coin-icon">🥈</span><span id="hud-silver">0</span></div>
                 <div class="hud-coin-item"><span class="coin-icon">🏅</span><span id="hud-gold">0</span></div>
             </div>
-            <div class="hud-storage">
-                <div class="hud-storage-label">СКЛАД <span id="hud-cur">0</span>/<span id="hud-max">200</span></div>
+            <div class="hud-storage" onclick="openShop()">
+                <div class="hud-storage-label">СКЛАД <span id="hud-cur">0</span>/<span id="hud-max">200</span> <span style="color:#FFD700;font-size:9px">🛒</span></div>
                 <div class="hud-storage-track"><div class="hud-storage-fill" id="hud-sfill"></div></div>
             </div>
             <div class="hud-right">
-                <div id="happy-hour-badge" class="happy-badge hidden">⚡ HAPPY HOUR!</div>
+                <div id="happy-hour-badge" class="happy-badge hidden">⚡ HAPPY!</div>
             </div>
         </div>
+        <div id="boost-timer" style="display:none;background:linear-gradient(90deg,#E65100,#FF6D00);color:#fff;font-family:'Courier New',monospace;font-size:10px;text-align:center;padding:3px;letter-spacing:1px;"></div>
 
         <div id="game-screen" class="screen active">
             <canvas id="game-canvas"></canvas>
-            <div class="mine-unlock-bar" id="mine-unlock-bar"></div>
+            <div class="scroll-arrow">▼ ЛИСТАЙ ВНИЗ ▼</div>
 
             <div id="upgrade-panel" class="upgrade-panel hidden">
                 <div class="upgrade-panel-inner">
@@ -92,9 +93,10 @@
                     </div>
                     <button class="forge-btn" id="forge-btn" onclick="doForge()" disabled>СОЗДАТЬ</button>
                 </div>
-                <div class="craft-coming">
-                    <div class="craft-coming-icon">💎</div>
-                    <div class="craft-coming-text">🏅 → 💎 Скоро в обновлении</div>
+
+                <div class="daily-reward-section">
+                    <div class="daily-reward-title">🎁 ЕЖЕДНЕВНАЯ НАГРАДА</div>
+                    <div id="daily-reward-container"></div>
                 </div>
             </div>
         </div>
@@ -119,10 +121,11 @@
                     <button class="profile-btn exchange-btn" onclick="openExchange()">💱 Обмен на TON</button>
                     <button class="profile-btn deposit-btn" onclick="openDeposit()">⭐ Пополнить Stars</button>
                     <button class="profile-btn withdraw-btn" onclick="openWithdraw()">📤 Вывод TON</button>
+                    <button class="profile-btn" style="background:linear-gradient(135deg,#1a237e,#283593)" onclick="openShop()">🛒 Магазин</button>
                 </div>
                 <div class="ref-card">
                     <div class="ref-title">👥 РЕФЕРАЛЬНАЯ ПРОГРАММА</div>
-                    <div class="ref-desc">Приглашай друзей — получай 🥈×1 за каждого!<br>Друг получит стартовый бонус монет.</div>
+                    <div class="ref-desc">Приглашай друзей — получай монеты за каждого!<br>Первые 10 рефералов дают +20 мест склада каждый.</div>
                     <div class="ref-link-wrap">
                         <div class="ref-link" id="ref-link">Загрузка...</div>
                         <button class="copy-btn" onclick="copyRefLink()">📋 Копировать</button>
@@ -135,6 +138,7 @@
         <div id="admin-screen" class="screen hidden">
             <div class="admin-wrap">
                 <h2>🔐 АДМИН ПАНЕЛЬ</h2>
+
                 <div class="admin-section">
                     <h3>📊 Шансы монет (%)</h3>
                     <div class="admin-row"><label>🪙 Обычная:</label><input type="number" id="adm-normal-pct" value="70"></div>
@@ -142,24 +146,28 @@
                     <div class="admin-row"><label>🏅 Золотая:</label><input type="number" id="adm-gold-pct" value="5"></div>
                     <button class="admin-btn" onclick="adminSaveRates()">Сохранить шансы</button>
                 </div>
+
                 <div class="admin-section">
                     <h3>💱 Курс обмена TON</h3>
                     <div class="admin-row"><label>🥈 1 серебро = TON:</label><input type="number" id="adm-silver-rate" value="0.001" step="0.0001"></div>
                     <div class="admin-row"><label>🏅 1 золото = TON:</label><input type="number" id="adm-gold-rate" value="0.005" step="0.0001"></div>
                     <button class="admin-btn" onclick="adminSaveRates()">Сохранить курсы</button>
                 </div>
+
                 <div class="admin-section">
                     <h3>⚡ Счастливый час</h3>
                     <div class="admin-row"><label>Длительность (мин):</label><input type="number" id="adm-happy-duration" value="60"></div>
                     <button class="admin-btn happy-btn" onclick="adminStartHappyHour()">Запустить!</button>
                     <div id="happy-status" class="happy-status"></div>
                 </div>
+
                 <div class="admin-section">
                     <h3>👤 Управление пользователем</h3>
                     <div class="admin-row"><label>Telegram ID:</label><input type="text" id="adm-user-id" placeholder="123456789"></div>
                     <button class="admin-btn" onclick="adminLookupUser()">Найти</button>
                     <div id="adm-user-info" class="adm-user-info hidden">
                         <div class="adm-user-name" id="adm-user-name">Пользователь: ---</div>
+                        <div id="adm-user-balance" style="font-family:var(--font);font-size:13px;margin-bottom:8px;color:#CCFF90;"></div>
                         <div class="adm-balance-grid">
                             <div><label>🪙</label><input type="number" id="adm-give-normal" placeholder="0"></div>
                             <div><label>🥈</label><input type="number" id="adm-give-silver" placeholder="0"></div>
@@ -171,6 +179,8 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="adm-economy-section"></div>
             </div>
         </div>
 
