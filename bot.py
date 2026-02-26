@@ -15,7 +15,6 @@ load_dotenv()
 BOT_TOKEN   = os.getenv('BOT_TOKEN', 'YOUR_BOT_TOKEN')
 WEBAPP_URL  = os.getenv('WEBAPP_URL', 'https://your-domain.com')
 ADMIN_IDS   = list(map(int, os.getenv('ADMIN_IDS', '').split(','))) if os.getenv('ADMIN_IDS') else []
-PORT = 8000
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -973,24 +972,37 @@ if __name__ == '__main__':
     init_db()
     mode = sys.argv[1] if len(sys.argv) > 1 else 'both'
 
+    PORT = int(os.getenv('PORT', 8000))
+
     if mode == 'bot':
         asyncio.run(run_bot())
 
     elif mode == 'server':
         try:
-            uvicorn.run(app, host='0.0.0.0', port=8000)
+            uvicorn.run(app, host='0.0.0.0', port=PORT)
         except NameError:
             log.error('Install: pip install fastapi uvicorn')
 
     else:
         async def run_all():
-            bot_task = asyncio.create_task(run_bot())
             try:
-                config  = uvicorn.Config(app, host='0.0.0.0', port=8000)
-                server  = uvicorn.Server(config)
+                config   = uvicorn.Config(app, host='0.0.0.0', port=PORT, log_level='info')
+                server   = uvicorn.Server(config)
                 srv_task = asyncio.create_task(server.serve())
-                await asyncio.gather(bot_task, srv_task)
+
+                async def bot_wrapper():
+                    while True:
+                        try:
+                            await run_bot()
+                        except Exception as e:
+                            log.error(f'Bot crashed: {e}. Restarting in 5s...')
+                            await asyncio.sleep(5)
+
+                bot_task = asyncio.create_task(bot_wrapper())
+                await srv_task
+                bot_task.cancel()
             except (NameError, ImportError):
-                await bot_task
+                log.error('Install: pip install fastapi uvicorn')
+                await run_bot()
 
         asyncio.run(run_all())
